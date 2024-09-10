@@ -42,11 +42,11 @@
                             <relocations>
                                 <relocation>
                                     <pattern>org.yaml.snakeyaml</pattern>
-                                    <shadedPattern>dev.gether.getconfig.shaded.snakeyaml</shadedPattern>
+                                    <shadedPattern>dev.gether.getutils.shaded.snakeyaml</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>com.fasterxml.jackson</pattern>
-                                    <shadedPattern>dev.gether.getconfig.shaded.jackson</shadedPattern>
+                                    <shadedPattern>dev.gether.getutils.shaded.jackson</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>
