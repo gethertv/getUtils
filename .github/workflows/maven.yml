@@ -8,12 +8,6 @@
 
 name: Java CI with Maven
 
-permissions:
-  contents: read
-  id-token: write
-  actions: read
-  security-events: write
-
 on:
   push:
     branches: [ "master" ]
@@ -22,7 +16,7 @@ on:
 
 jobs:
   build:
-
+    permissions: write-all
     runs-on: ubuntu-latest
 
     steps:
