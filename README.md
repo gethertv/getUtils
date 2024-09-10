@@ -2,7 +2,7 @@
 
 GetUtils is a comprehensive utility library designed to simplify and enhance the process of creating Minecraft plugins for Bukkit/Spigot servers. It provides a collection of tools, helpers, and utilities that address common challenges in plugin development, allowing developers to focus on creating unique features for their servers.
 
-## Key Features
+## Features
 
 - Simplifies common Minecraft plugin development tasks
 - Provides utilities for handling items, inventories, players, and more
