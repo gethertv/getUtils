@@ -45,15 +45,10 @@ These models provide additional functionality and abstraction layers to simplify
 Add the following repository and dependency to your `pom.xml`:
 
 ```xml
-<repository>
-    <id>jitpack.io</id>
-    <url>https://jitpack.io</url>
-</repository>
-
 <dependency>
-    <groupId>com.github.gethertv</groupId>
-    <artifactId>GetUtils</artifactId>
-    <version>1.0.0</version>
+    <groupId>io.github.gethertv</groupId>
+    <artifactId>getutils</artifactId>
+    <version>1.0</version>
 </dependency>
 ```
 
