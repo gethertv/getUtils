@@ -37,6 +37,8 @@ public final class MessageUtil {
      * @param message The message to be sent.
      */
     public static void sendMessage(Player player, String message) {
+        if(message == null || message.isEmpty() || message.equalsIgnoreCase("none")) return;
+
         player.sendMessage(ColorFixer.addColors(message));
     }
 
@@ -47,6 +49,8 @@ public final class MessageUtil {
      * @param message The message to be sent.
      */
     public static void sendMessage(CommandSender sender, String message) {
+        if(message == null || message.isEmpty() || message.equalsIgnoreCase("none")) return;
+
         sender.sendMessage(ColorFixer.addColors(message));
     }
 
@@ -69,6 +73,8 @@ public final class MessageUtil {
      * @param message The message to be broadcast.
      */
     public static void broadcast(String message) {
+        if(message == null || message.isEmpty() || message.equalsIgnoreCase("none")) return;
+
         String coloredMessage = ColorFixer.addColors(message);
         Bukkit.getOnlinePlayers().forEach(player -> player.sendMessage(coloredMessage));
         Bukkit.getConsoleSender().sendMessage(coloredMessage);
