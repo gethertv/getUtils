@@ -35,6 +35,14 @@ jobs:
     - name: Update dependency graph
       uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
 
+    # Extract version from pom.xml
+    - name: Extract version from pom.xml
+      id: extract_version
+      run: |
+        version=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" pom.xml)
+        echo "Version found in pom.xml: $version"
+        echo "version=$version" >> $GITHUB_ENV
+
     # Ensure the .jar file exists in the target directory
     - name: Check if JAR was generated
       run: ls -la target
@@ -46,8 +54,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: 1.0
-        release_name: "getUtils 1.0"
+        tag_name: ${{ env.version }}
+        release_name: "getUtils ${{ env.version }}"
         draft: false
         prerelease: false
 
@@ -58,7 +66,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./target/getUtils-1.0.jar 
-        asset_name: getUtils-1.0.jar          
+        asset_path: ./target/getUtils-${{ env.version }}.jar 
+        asset_name: getUtils-${{ env.version }}.jar          
         asset_content_type: application/java-archive
+
 
