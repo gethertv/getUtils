@@ -50,8 +50,11 @@ Add the following repository and dependency to your `pom.xml`:
     <artifactId>getutils</artifactId>
     <version>1.0</version>
 </dependency>
+```
 
+Additionally, add the following `<build>` section to your `pom.xml`:
 
+```xml
 <build>
     <plugins>
         <plugin>
@@ -88,6 +91,20 @@ Add the following repository and dependency to your `pom.xml`:
     </plugins>
 </build>
 ```
+
+### Why is this build configuration necessary?
+
+1. **Relocation**: The `<relocations>` section is crucial for avoiding conflicts with other plugins that might use different versions of getUtils. It moves the getUtils classes into your plugin's package namespace.
+
+   - Replace `[your-package]` with your plugin's package name.
+   - This ensures that your plugin uses its own copy of getUtils, preventing conflicts with other plugins.
+
+2. **Shading**: The maven-shade-plugin "shades" (includes) getUtils into your plugin's JAR file. This means your plugin will be self-contained and won't rely on getUtils being present in the server's classpath.
+
+3. **Filtering**: The `<filters>` section ensures that only the necessary getUtils classes are included in your plugin's JAR, helping to keep the file size manageable.
+
+4. **Dependency Reduced POM**: Setting `<createDependencyReducedPom>false</createDependencyReducedPom>` prevents the creation of an additional POM file, simplifying your build output.
+
 
 # GetUtils
 
