@@ -50,6 +50,43 @@ Add the following repository and dependency to your `pom.xml`:
     <artifactId>getutils</artifactId>
     <version>1.0</version>
 </dependency>
+
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>3.5.3</version>
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>shade</goal>
+                    </goals>
+                    <configuration>
+                        <relocations>
+                            <relocation>
+                                <pattern>dev.gether.getutils</pattern>
+                                <shadedPattern>[your-package].getutils</shadedPattern>
+                            </relocation>
+                        </relocations>
+                        <createDependencyReducedPom>false</createDependencyReducedPom>
+                        <filters>
+                            <filter>
+                                <artifact>*:*</artifact>
+                                <excludeDefaults>false</excludeDefaults>
+                                <includes>
+                                    <include>dev/gether/getutils/**</include>
+                                </includes>
+                            </filter>
+                        </filters>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
 ```
 
 # GetUtils
