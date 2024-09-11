@@ -48,7 +48,7 @@ Add the following repository and dependency to your `pom.xml`:
 <dependency>
     <groupId>io.github.gethertv</groupId>
     <artifactId>getutils</artifactId>
-    <version>1.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
