@@ -109,7 +109,7 @@ Additionally, add the following `<build>` section to your `pom.xml`:
 # GetUtils
 
 ## Table of Contents
-- [Key Features](#key-features)
+- [Features](#features)
 - [Serialization Support](#serialization-support)
 - [Models](#models)
 - [Installation](#installation)
