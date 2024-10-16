@@ -1,5 +1,6 @@
 package dev.gether.getutils.models;
 
+import dev.gether.getutils.selector.RegionSelection;
 import lombok.Getter;
 import lombok.Setter;
 import org.bukkit.Bukkit;
@@ -23,6 +24,18 @@ public class Cuboid implements Serializable {
 
     private String worldName;
     private int minX, maxX, minY, maxY, minZ, maxZ;
+    private Location firstLocation, secondLocation;
+
+
+    /**
+     * Constructs a Cuboid from two locations.
+     *
+     * @param regionSelection The data handle location of selector
+     */
+    public Cuboid(RegionSelection regionSelection) {
+        this(regionSelection.firstPoint(), regionSelection.secondPoint());
+    }
+
 
     /**
      * Constructs a Cuboid from two locations.
@@ -33,6 +46,9 @@ public class Cuboid implements Serializable {
     public Cuboid(Location loc1, Location loc2) {
         this(loc1.getWorld(), loc1.getBlockX(), loc1.getBlockY(), loc1.getBlockZ(),
              loc2.getBlockX(), loc2.getBlockY(), loc2.getBlockZ());
+
+        this.firstLocation = loc1;
+        this.secondLocation = loc2;
     }
 
     /**

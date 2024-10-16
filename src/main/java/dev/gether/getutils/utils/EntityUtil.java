@@ -13,18 +13,17 @@ import java.util.*;
 public final class EntityUtil {
 
     /**
-     * Finds the nearest entity of a specified type within a given range from a central location.
+     * Finds all entities of a specified type within a given range from a central location.
      *
-
      * @param <T> The type of LivingEntity to search for
      * @param center The central Location to search around
      * @param range The radius of the spherical search area
      * @param entityClass The Class object representing the type of entity to find
-     * @return The nearest entity of the specified type, or null if none are found
+     * @return A list of entities of the specified type within the range, sorted by distance from the center
      *
-     * @throws IllegalArgumentException if center is null, range3D is negative, or entityClass is null
+     * @throws IllegalArgumentException if center is null, range is negative, or entityClass is null
      */
-    public static <T extends LivingEntity> T findNearestEntity(Location center, double range, Class<T> entityClass) {
+    public static <T extends LivingEntity> List<T> findNearbyEntities(Location center, double range, Class<T> entityClass) {
         // Validate input parameters
         Valid.checkNotNull(center, "Center location cannot be null");
         Valid.checkBoolean(range >= 0, "Range must be non-negative");
@@ -32,13 +31,16 @@ public final class EntityUtil {
 
         final List<T> found = new ArrayList<>();
 
-        for (final Entity nearby : getNearbyEntities(center, range))
-            if (nearby instanceof LivingEntity && entityClass.isAssignableFrom(nearby.getClass()))
+        for (final Entity nearby : getNearbyEntities(center, range)) {
+            if (nearby instanceof LivingEntity && entityClass.isAssignableFrom(nearby.getClass())) {
                 found.add((T) nearby);
+            }
+        }
 
-        Collections.sort(found, (first, second) -> Double.compare(first.getLocation().distance(center), second.getLocation().distance(center)));
+        // Sort the list by distance from the center
+        found.sort((first, second) -> Double.compare(first.getLocation().distance(center), second.getLocation().distance(center)));
 
-        return found.isEmpty() ? null : found.get(0);
+        return found;
     }
 
     /**

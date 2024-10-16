@@ -30,6 +30,7 @@ public abstract class AbstractInventoryHolder implements InventoryHolder {
     final Map<Integer, Consumer<InventoryClickEvent>> slotActions;
     final Plugin plugin;
     BukkitTask refreshTask;
+    boolean cancelClicks;
     long refreshInterval = -1;
     boolean hookPlaceholder;
 
@@ -39,6 +40,7 @@ public abstract class AbstractInventoryHolder implements InventoryHolder {
         }
         this.plugin = plugin;
         this.player = player;
+        this.cancelClicks = inventoryConfig.isCancelClicks();
         this.inventory = inventoryConfig.createInventory(this);
         this.slotActions = new HashMap<>();
         this.refreshInterval = inventoryConfig.getRefreshInterval();
@@ -79,6 +81,17 @@ public abstract class AbstractInventoryHolder implements InventoryHolder {
         inventory.setItem(slot, item);
         if (action != null) {
             slotActions.put(slot, action);
+        }
+    }
+
+    public void setItem(StaticItem staticItem) {
+        inventory.setItem(staticItem.slot, staticItem.getItem().getItemStack());
+    }
+
+    public void setItem(StaticItem staticItem, Consumer<InventoryClickEvent> action) {
+        setItem(staticItem);
+        if (action != null) {
+            slotActions.put(staticItem.slot, action);
         }
     }
 

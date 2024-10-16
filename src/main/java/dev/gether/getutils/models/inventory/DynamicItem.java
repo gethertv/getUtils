@@ -1,11 +1,11 @@
 package dev.gether.getutils.models.inventory;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import dev.gether.getutils.models.Item;
 import lombok.*;
+import lombok.experimental.FieldDefaults;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,10 +17,11 @@ import java.util.function.Supplier;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DynamicItem implements Serializable {
-    private ItemStack itemStack;
-    private List<Integer> slots;
-    private Map<String, Supplier<String>> placeholders = new HashMap<>();
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class DynamicItem {
+    Item item;
+    List<Integer> slots;
+    Map<String, Supplier<String>> placeholders = new HashMap<>();
 
     public void addPlaceholder(String key, Supplier<String> valueProvider) {
         placeholders.put(key, valueProvider);
@@ -32,7 +33,7 @@ public class DynamicItem implements Serializable {
 
     @JsonIgnore
     public ItemStack getProcessedItem() {
-        ItemStack processedItem = itemStack.clone();
+        ItemStack processedItem = item.getItemStack();
         ItemMeta meta = processedItem.getItemMeta();
         if (meta != null) {
             if (meta.hasDisplayName()) {
@@ -53,6 +54,7 @@ public class DynamicItem implements Serializable {
 
     @JsonIgnore
     private String replacePlaceholders(String text) {
+        if(placeholders==null) return text;
         for (Map.Entry<String, Supplier<String>> entry : placeholders.entrySet()) {
             String placeholder = "{" + entry.getKey() + "}";
             String value = entry.getValue().get();

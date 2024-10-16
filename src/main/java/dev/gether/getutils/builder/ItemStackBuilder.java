@@ -4,6 +4,9 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import dev.gether.getutils.Valid;
 import dev.gether.getutils.utils.ColorFixer;
+import dev.gether.getutils.utils.ConsoleColor;
+import dev.gether.getutils.utils.MessageUtil;
+import dev.gether.getutils.utils.ServerVersionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
@@ -15,16 +18,18 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.*;
 
-public class ItemBuilder {
+public class ItemStackBuilder {
 
     private ItemStack itemStack;
     private ItemMeta itemMeta;
     private Map<Attribute, List<AttributeModifier>> attributeModifiers = new HashMap<>();
     private List<ItemFlag> itemFlags = new ArrayList<>();
 
-    private ItemBuilder(Material material) {
+    private ItemStackBuilder(Material material) {
         Valid.checkNotNull(material, "Material cannot be null");
         this.itemStack = new ItemStack(material);
         this.itemMeta = itemStack.getItemMeta();
@@ -36,8 +41,8 @@ public class ItemBuilder {
      * @param material The material of the item
      * @return A new ItemBuilder instance
      */
-    public static ItemBuilder of(Material material) {
-        return new ItemBuilder(material);
+    public static ItemStackBuilder of(Material material) {
+        return new ItemStackBuilder(material);
     }
 
     /**
@@ -46,7 +51,7 @@ public class ItemBuilder {
      * @param name The name to set
      * @return This ItemBuilder instance
      */
-    public ItemBuilder name(String name) {
+    public ItemStackBuilder name(String name) {
         Valid.checkNotNull(name, "Name cannot be null");
         itemMeta.setDisplayName(ColorFixer.addColors(name));
         return this;
@@ -58,7 +63,7 @@ public class ItemBuilder {
      * @param amount The amount to set
      * @return This ItemBuilder instance
      */
-    public ItemBuilder amount(int amount) {
+    public ItemStackBuilder amount(int amount) {
         itemStack.setAmount(Math.max(1, amount));
         return this;
     }
@@ -69,7 +74,7 @@ public class ItemBuilder {
      * @param attributeModifiers A map of attributes and their modifiers
      * @return This ItemBuilder instance
      */
-    public ItemBuilder attributeModifiers(Map<Attribute, List<AttributeModifier>> attributeModifiers) {
+    public ItemStackBuilder attributeModifiers(Map<Attribute, List<AttributeModifier>> attributeModifiers) {
         if(attributeModifiers != null) {
             this.attributeModifiers.putAll(attributeModifiers);
         }
@@ -83,7 +88,7 @@ public class ItemBuilder {
      * @param modifier The modifier to apply
      * @return This ItemBuilder instance
      */
-    public ItemBuilder addAttributeModifier(Attribute attribute, AttributeModifier modifier) {
+    public ItemStackBuilder addAttributeModifier(Attribute attribute, AttributeModifier modifier) {
         Valid.checkNotNull(attribute, "Attribute cannot be null");
         Valid.checkNotNull(modifier, "AttributeModifier cannot be null");
         this.attributeModifiers.computeIfAbsent(attribute, k -> new ArrayList<>()).add(modifier);
@@ -96,7 +101,7 @@ public class ItemBuilder {
      * @param flags The flags to add
      * @return This ItemBuilder instance
      */
-    public ItemBuilder addItemFlags(ItemFlag... flags) {
+    public ItemStackBuilder addItemFlags(ItemFlag... flags) {
         if(flags != null) {
             this.itemFlags.addAll(Arrays.asList(flags));
         }
@@ -109,7 +114,7 @@ public class ItemBuilder {
      * @param lore The lore to set
      * @return This ItemBuilder instance
      */
-    public ItemBuilder lore(List<String> lore) {
+    public ItemStackBuilder lore(List<String> lore) {
         if(lore != null) {
             itemMeta.setLore(ColorFixer.addColors(new ArrayList<>(lore)));
         }
@@ -122,7 +127,7 @@ public class ItemBuilder {
      * @param glow Whether the item should glow
      * @return This ItemBuilder instance
      */
-    public ItemBuilder glow(boolean glow) {
+    public ItemStackBuilder glow(boolean glow) {
         if (glow) {
             itemStack.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
             addItemFlags(ItemFlag.HIDE_ENCHANTS);
@@ -136,7 +141,7 @@ public class ItemBuilder {
      * @param unbreakable Whether the item should be unbreakable
      * @return This ItemBuilder instance
      */
-    public ItemBuilder unbreakable(boolean unbreakable) {
+    public ItemStackBuilder unbreakable(boolean unbreakable) {
         itemMeta.setUnbreakable(unbreakable);
         if (unbreakable) {
             addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
@@ -150,7 +155,7 @@ public class ItemBuilder {
      * @param modelData The custom model data to set
      * @return This ItemBuilder instance
      */
-    public ItemBuilder modelData(int modelData) {
+    public ItemStackBuilder modelData(int modelData) {
         itemMeta.setCustomModelData(modelData);
         return this;
     }
@@ -161,7 +166,7 @@ public class ItemBuilder {
      * @param enchantments A map of enchantments and their levels
      * @return This ItemBuilder instance
      */
-    public ItemBuilder enchantments(Map<Enchantment, Integer> enchantments) {
+    public ItemStackBuilder enchantments(Map<Enchantment, Integer> enchantments) {
         if (enchantments != null && !enchantments.isEmpty()) {
             itemStack.setItemMeta(itemMeta);
             enchantments.forEach((enchantment, level) -> itemStack.addUnsafeEnchantment(enchantment, level));
@@ -176,24 +181,65 @@ public class ItemBuilder {
      * @param base64 The Base64 encoded texture string
      * @return This ItemBuilder instance
      */
-    public ItemBuilder skullTexture(String base64) {
+    public ItemStackBuilder skullTexture(String base64) {
         if (itemMeta instanceof SkullMeta skullMeta && base64 != null && !base64.isEmpty()) {
             UUID hashAsId = new UUID(base64.hashCode(), base64.hashCode());
-            GameProfile profile = new GameProfile(hashAsId, "gether.dev");
-            profile.getProperties().put("textures", new Property("textures", base64));
-
-            try {
-                Method method = skullMeta.getClass().getDeclaredMethod("setProfile", GameProfile.class);
-                method.setAccessible(true);
-                method.invoke(skullMeta, profile);
-            } catch (Exception e) {
-                Bukkit.getLogger().warning("Failed to set skull texture: " + e.getMessage());
-                itemStack = Bukkit.getUnsafe().modifyItemStack(itemStack,
-                        "{SkullOwner:{Id:\"" + hashAsId + "\",Properties:{textures:[{Value:\"" + base64 + "\"}]}}}");
-                itemMeta = itemStack.getItemMeta();
+            if (ServerVersionUtil.isNewHeadApiSupported()) {
+                applyNewSkullTexture(skullMeta, base64, hashAsId);
+            } else {
+                applyLegacySkullTexture(base64, hashAsId);
             }
         }
         return this;
+    }
+
+    private void applyNewSkullTexture(SkullMeta skullMeta, String base64, UUID hashAsId) {
+        try {
+            // Use reflection to access new API methods
+            Class<?> bukkitClass = Class.forName("org.bukkit.Bukkit");
+            Method createProfileMethod = bukkitClass.getMethod("createPlayerProfile", UUID.class);
+            Object playerProfile = createProfileMethod.invoke(null, hashAsId);
+
+
+            Class<?> playerProfileClass = Class.forName("org.bukkit.profile.PlayerProfile");
+            Method getTexturesMethod = playerProfileClass.getMethod("getTextures");
+            Object playerTextures = getTexturesMethod.invoke(playerProfile);
+
+            Class<?> playerTexturesClass = Class.forName("org.bukkit.profile.PlayerTextures");
+            Method setSkinMethod = playerTexturesClass.getMethod("setSkin", URL.class);
+
+            URL skinUrl = getUrlFromBase64(base64);
+            setSkinMethod.invoke(playerTextures, skinUrl);
+
+            Class<?> skullMetaClass = Class.forName("org.bukkit.inventory.meta.SkullMeta");
+            Method setOwnerProfileMethod = skullMetaClass.getMethod("setOwnerProfile", playerProfileClass);
+            setOwnerProfileMethod.invoke(skullMeta, playerProfile);
+
+
+        } catch (Exception e) {
+            MessageUtil.logMessage(ConsoleColor.RED, "[getUtils] Failed to set new skull texture: " + e.getMessage());
+        }
+    }
+
+    public URL getUrlFromBase64(String base64) throws MalformedURLException {
+        String decoded = new String(Base64.getDecoder().decode(base64));
+        return new URL(decoded.substring("{\"textures\":{\"SKIN\":{\"url\":\"".length(), decoded.length() - "\"}}}".length()));
+    }
+
+
+    private void applyLegacySkullTexture(String base64, UUID hashAsId) {
+        try {
+            GameProfile profile = new GameProfile(hashAsId, "gether.dev");
+            profile.getProperties().put("textures", new Property("textures", base64));
+            Method method = itemMeta.getClass().getDeclaredMethod("setProfile", GameProfile.class);
+            method.setAccessible(true);
+            method.invoke(itemMeta, profile);
+        } catch (Exception e) {
+            MessageUtil.logMessage(ConsoleColor.RED, "[getUtils] Failed to set legacy skull texture: " + e.getMessage());
+            String nbt = "{SkullOwner:{Id:\"" + hashAsId + "\",Properties:{textures:[{Value:\"" + base64 + "\"}]}}}";
+            itemStack = Bukkit.getUnsafe().modifyItemStack(itemStack, nbt);
+            itemMeta = itemStack.getItemMeta();
+        }
     }
 
     /**

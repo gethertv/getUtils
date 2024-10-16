@@ -3,9 +3,24 @@ package dev.gether.getutils.utils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class TimeUtil {
 
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+
+    /**
+     * Formats the given time in milliseconds to a date string (e.g., "24.09.2024 15:30:45").
+     *
+     * @param currentTimeMillis Time in milliseconds
+     * @return Formatted date string
+     */
+    public static String formatDate(long currentTimeMillis) {
+        Date date = new Date(currentTimeMillis);
+        return DATE_FORMAT.format(date);
+    }
 
     /**
      * Formats time in seconds to a short form string (e.g., "5d 2h 30m 15s").

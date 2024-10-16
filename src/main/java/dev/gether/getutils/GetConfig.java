@@ -8,33 +8,28 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import dev.gether.getutils.annotation.Comment;
-import dev.gether.getutils.deserializer.AttributeModifierDeserializer;
-import dev.gether.getutils.deserializer.CuboidDeserializer;
-import dev.gether.getutils.deserializer.ItemStackDeserializer;
-import dev.gether.getutils.deserializer.LocationDeserializer;
+import dev.gether.getutils.deserializer.*;
 import dev.gether.getutils.models.Cuboid;
-import dev.gether.getutils.serializer.AttributeModifierSerializer;
-import dev.gether.getutils.serializer.CuboidSerializer;
-import dev.gether.getutils.serializer.ItemStackSerializer;
-import dev.gether.getutils.serializer.LocationSerializer;
-import org.bukkit.Color;
+import dev.gether.getutils.serializer.*;
 import org.bukkit.Location;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * The GetConfig class provides functionality for loading, saving, and managing configuration data.
@@ -83,10 +78,14 @@ public class GetConfig {
      * @param module The SimpleModule to register serializers with.
      */
     private void registerSerializers(SimpleModule module) {
+        //module.addSerializer(ItemStack.class, new ItemStackSerializer());
         module.addSerializer(ItemStack.class, new ItemStackSerializer());
         module.addSerializer(Location.class, new LocationSerializer());
         module.addSerializer(Cuboid.class, new CuboidSerializer());
         module.addSerializer(AttributeModifier.class, new AttributeModifierSerializer());
+        module.addSerializer(PotionEffect.class, new PotionEffectSerializer());
+
+        module.addKeySerializer(Enchantment.class, new EnchantmentKeySerializer());
     }
 
     /**
@@ -95,10 +94,13 @@ public class GetConfig {
      * @param module The SimpleModule to register deserializers with.
      */
     private void registerDeserializers(SimpleModule module) {
+        //module.addDeserializer(ItemStack.class, new ItemStackDeserializer());
         module.addDeserializer(ItemStack.class, new ItemStackDeserializer());
         module.addDeserializer(Location.class, new LocationDeserializer());
         module.addDeserializer(Cuboid.class, new CuboidDeserializer());
         module.addDeserializer(AttributeModifier.class, new AttributeModifierDeserializer());
+        module.addDeserializer(PotionEffect.class, new PotionEffectDeserializer());
+        module.addKeyDeserializer(Enchantment.class, new EnchantmentKeyDeserializer());
     }
 
     /**
@@ -287,5 +289,10 @@ public class GetConfig {
     @JsonIgnore
     public ObjectMapper getMapper() {
         return this.mapper;
+    }
+
+    @JsonIgnore
+    public File getFile() {
+        return file;
     }
 }

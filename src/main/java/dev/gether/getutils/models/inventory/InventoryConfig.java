@@ -16,11 +16,12 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class InventoryConfig implements Serializable {
+public class InventoryConfig {
 
     String title;
     int size;
     int refreshInterval = -1;
+    boolean cancelClicks = true;
 
     List<DynamicItem> decorations;
 
@@ -28,13 +29,14 @@ public class InventoryConfig implements Serializable {
     public Inventory createInventory(AbstractInventoryHolder holder) {
         Inventory inventory = Bukkit.createInventory(holder, size, ColorFixer.addColors(title));
 
-        decorations.forEach(decorationItem -> {
-            ItemStack itemStack = holder.processPlaceholders(decorationItem.getItemStack().clone());
-            decorationItem.getSlots().forEach(slot -> {
-                inventory.setItem(slot, itemStack);
+        if(decorations != null) {
+            decorations.forEach(decorationItem -> {
+                ItemStack itemStack = holder.processPlaceholders(decorationItem.getProcessedItem());
+                decorationItem.getSlots().forEach(slot -> {
+                    inventory.setItem(slot, itemStack);
+                });
             });
-        });
-
+        }
         return inventory;
     }
 
