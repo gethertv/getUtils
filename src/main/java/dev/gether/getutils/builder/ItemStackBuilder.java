@@ -15,7 +15,10 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.potion.PotionData;
+import org.bukkit.potion.PotionType;
 
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -28,6 +31,12 @@ public class ItemStackBuilder {
     private ItemMeta itemMeta;
     private Map<Attribute, List<AttributeModifier>> attributeModifiers = new HashMap<>();
     private List<ItemFlag> itemFlags = new ArrayList<>();
+
+    private PotionType potionType;
+    private boolean extended;
+    private boolean upgraded;
+
+
 
     private ItemStackBuilder(Material material) {
         Valid.checkNotNull(material, "Material cannot be null");
@@ -52,7 +61,9 @@ public class ItemStackBuilder {
      * @return This ItemBuilder instance
      */
     public ItemStackBuilder name(String name) {
-        Valid.checkNotNull(name, "Name cannot be null");
+        if(name == null)
+            return this;
+
         itemMeta.setDisplayName(ColorFixer.addColors(name));
         return this;
     }
@@ -89,8 +100,9 @@ public class ItemStackBuilder {
      * @return This ItemBuilder instance
      */
     public ItemStackBuilder addAttributeModifier(Attribute attribute, AttributeModifier modifier) {
-        Valid.checkNotNull(attribute, "Attribute cannot be null");
-        Valid.checkNotNull(modifier, "AttributeModifier cannot be null");
+        if(attribute == null || modifier == null)
+            return this;
+
         this.attributeModifiers.computeIfAbsent(attribute, k -> new ArrayList<>()).add(modifier);
         return this;
     }
@@ -129,7 +141,18 @@ public class ItemStackBuilder {
      */
     public ItemStackBuilder glow(boolean glow) {
         if (glow) {
-            itemStack.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
+            Enchantment enchantment;
+            try {
+                enchantment = Enchantment.DURABILITY;
+            } catch (NoSuchFieldError e) {
+                enchantment = Enchantment.getByName("UNBREAKING");
+                if (enchantment == null) {
+                    throw new IllegalStateException("Could not find appropriate enchantment for glow effect");
+                }
+            }
+            itemStack.setItemMeta(itemMeta);
+            itemStack.addUnsafeEnchantment(enchantment, 1);
+            itemMeta = itemStack.getItemMeta();
             addItemFlags(ItemFlag.HIDE_ENCHANTS);
         }
         return this;
@@ -242,18 +265,50 @@ public class ItemStackBuilder {
         }
     }
 
+    public ItemStackBuilder potionData(PotionType type, boolean extended, boolean upgraded) {
+        if (itemMeta instanceof PotionMeta potionMeta) {
+            this.potionType = type;
+            this.extended = extended;
+            this.upgraded = upgraded;
+        }
+        return this;
+    }
+
+
     /**
      * Builds the final ItemStack with all applied properties.
      *
      * @return The constructed ItemStack
      */
     public ItemStack build() {
-        attributeModifiers.forEach((attribute, modifiers) ->
-                modifiers.forEach(modifier -> itemMeta.addAttributeModifier(attribute, modifier)));
+        if (itemMeta == null) {
+            return itemStack; // Jeśli meta nie istnieje, zwracamy surowy ItemStack
+        }
 
-        itemMeta.addItemFlags(itemFlags.toArray(new ItemFlag[0]));
+        if (itemMeta instanceof PotionMeta potionMeta && potionType != null) {
+            if (extended && upgraded) {
+                throw new IllegalArgumentException("Potion cannot be both extended and upgraded.");
+            }
+
+            potionMeta.setBasePotionData(new PotionData(potionType, extended, upgraded));
+            itemStack.setItemMeta(potionMeta);
+        }
+
+        if (attributeModifiers != null) {
+            attributeModifiers.forEach((attribute, modifiers) -> {
+                if (modifiers != null) {
+                    modifiers.forEach(modifier -> itemMeta.addAttributeModifier(attribute, modifier));
+                }
+            });
+        }
+
+        if (!itemFlags.isEmpty()) {
+            itemMeta.addItemFlags(itemFlags.toArray(new ItemFlag[0]));
+        }
 
         itemStack.setItemMeta(itemMeta);
+
         return itemStack;
     }
+
 }

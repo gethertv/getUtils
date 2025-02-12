@@ -11,7 +11,10 @@ import dev.gether.getutils.annotation.Comment;
 import dev.gether.getutils.deserializer.*;
 import dev.gether.getutils.models.Cuboid;
 import dev.gether.getutils.serializer.*;
+import lombok.Getter;
+import lombok.experimental.SuperBuilder;
 import org.bukkit.Location;
+import org.bukkit.Sound;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
@@ -35,7 +38,8 @@ import java.util.Map;
  * The GetConfig class provides functionality for loading, saving, and managing configuration data.
  * It supports both file-based and URL-based configurations, as well as in-memory content.
  */
-
+@SuperBuilder
+@Getter
 public class GetConfig {
     private static final Logger logger = LoggerFactory.getLogger(GetConfig.class);
 
@@ -63,6 +67,7 @@ public class GetConfig {
         ObjectMapper mapper = new ObjectMapper(yamlFactory);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.findAndRegisterModules();
 
         SimpleModule module = new SimpleModule();
         registerSerializers(module);
@@ -84,6 +89,7 @@ public class GetConfig {
         module.addSerializer(Cuboid.class, new CuboidSerializer());
         module.addSerializer(AttributeModifier.class, new AttributeModifierSerializer());
         module.addSerializer(PotionEffect.class, new PotionEffectSerializer());
+        module.addSerializer(Sound.class, new SoundSerializer());
 
         module.addKeySerializer(Enchantment.class, new EnchantmentKeySerializer());
     }
@@ -101,6 +107,7 @@ public class GetConfig {
         module.addDeserializer(AttributeModifier.class, new AttributeModifierDeserializer());
         module.addDeserializer(PotionEffect.class, new PotionEffectDeserializer());
         module.addKeyDeserializer(Enchantment.class, new EnchantmentKeyDeserializer());
+        module.addDeserializer(Sound.class, new SoundDeserializer());
     }
 
     /**

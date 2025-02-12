@@ -43,14 +43,14 @@ public final class ColorFixer {
             return input;
         }
 
+        input = applyBoldTags(input);
         input = applyGradients(input);
         input = applyHexColors(input);
         input = applyBracketHexColors(input);
-        input = applyBoldTags(input);
 
-        // Finally, translate standard color codes
         return ChatColor.translateAlternateColorCodes('&', input);
     }
+
 
     /**
      * Applies a gradient effect to a string.
@@ -60,26 +60,42 @@ public final class ColorFixer {
      * @param endColor Ending color of the gradient
      * @return String with gradient effect applied
      */
-    public static String applyGradient(String input, Color startColor, Color endColor) {
+    private static String applyGradient(String input, Color startColor, Color endColor) {
         if (input == null || input.isEmpty()) {
             return input;
         }
 
         int length = input.length();
         StringBuilder result = new StringBuilder();
+        boolean isBold = input.contains("§l");
 
         for (int i = 0; i < length; i++) {
+            char c = input.charAt(i);
+            // Pomijamy znaki formatowania
+            if (c == '§') {
+                if (i + 1 < length) {
+                    result.append(c).append(input.charAt(++i));
+                }
+                continue;
+            }
+
             double ratio = (double) i / (length - 1);
             int red = (int) (startColor.getRed() * (1 - ratio) + endColor.getRed() * ratio);
             int green = (int) (startColor.getGreen() * (1 - ratio) + endColor.getGreen() * ratio);
             int blue = (int) (startColor.getBlue() * (1 - ratio) + endColor.getBlue() * ratio);
 
             String hexColor = String.format("#%02x%02x%02x", red, green, blue);
-            result.append(translateHexColorCodes(hexColor)).append(input.charAt(i));
+            result.append(translateHexColorCodes(hexColor));
+            if (isBold) {
+                result.append("§l");
+            }
+            result.append(c);
         }
 
         return result.toString();
     }
+
+
 
     private static String applyGradients(String input) {
         Matcher gradientMatcher = GRADIENT_PATTERN.matcher(input);
@@ -131,12 +147,15 @@ public final class ColorFixer {
         StringBuilder boldResult = new StringBuilder();
 
         while (boldMatcher.find()) {
-            String boldText = ChatColor.BOLD + boldMatcher.group(1) + ChatColor.RESET;
-            boldMatcher.appendReplacement(boldResult, boldText);
+            String boldText = boldMatcher.group(1);
+            // Dodajemy tylko znacznik pogrubienia, bez resetu
+            boldMatcher.appendReplacement(boldResult, "§l" + boldText);
         }
         boldMatcher.appendTail(boldResult);
         return boldResult.toString();
     }
+
+
 
     private static Color parseHexColor(String hexColor) {
         if (hexColor.length() == 4) {

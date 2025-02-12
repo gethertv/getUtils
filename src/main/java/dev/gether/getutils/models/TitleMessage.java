@@ -1,9 +1,11 @@
 package dev.gether.getutils.models;
 
+import dev.gether.getutils.utils.ColorFixer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 
@@ -52,7 +54,28 @@ public class TitleMessage {
         if (!enabled) {
             return;
         }
-        player.sendTitle(title, subtitle, fadeIn, stay, fadeOut);
+        player.sendTitle(
+                ColorFixer.addColors(title),
+                ColorFixer.addColors(subtitle),
+                fadeIn,
+                stay,
+                fadeOut
+        );
+    }
+
+    public void sendToAll() {
+        if (!enabled) {
+            return;
+        }
+        Bukkit.getOnlinePlayers().forEach(p -> {
+            p.sendTitle(
+                    ColorFixer.addColors(title),
+                    ColorFixer.addColors(subtitle),
+                    fadeIn,
+                    stay,
+                    fadeOut
+            );
+        });
     }
 
     /**
@@ -90,4 +113,5 @@ public class TitleMessage {
                 .fadeOut(20)
                 .build();
     }
+
 }

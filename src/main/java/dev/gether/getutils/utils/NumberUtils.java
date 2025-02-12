@@ -24,7 +24,7 @@ public class NumberUtils {
      */
     public static String intToRoman(int num) {
         // Validate that the input is a positive integer
-        Valid.checkBoolean(num > 0, "Number must be greater than zero");
+        if(num <= 0) return "";
 
         StringBuilder sb = new StringBuilder();
 

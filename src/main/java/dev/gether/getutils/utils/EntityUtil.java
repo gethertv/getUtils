@@ -25,7 +25,7 @@ public final class EntityUtil {
      */
     public static <T extends LivingEntity> List<T> findNearbyEntities(Location center, double range, Class<T> entityClass) {
         // Validate input parameters
-        Valid.checkNotNull(center, "Center location cannot be null");
+            Valid.checkNotNull(center, "Center location cannot be null");
         Valid.checkBoolean(range >= 0, "Range must be non-negative");
         Valid.checkNotNull(entityClass, "Entity class cannot be null");
 

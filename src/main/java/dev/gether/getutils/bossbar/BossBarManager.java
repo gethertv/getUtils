@@ -116,6 +116,11 @@ public class BossBarManager {
     }
 
     private void scheduleSolidBossBarRemoval(Player player, ActiveBossBar activeBossBar) {
+        // Don't schedule removal if duration is -1 (permanent)
+        if (activeBossBar.getPlayerBossBar().getDurationSeconds() == -1) {
+            return;
+        }
+
         BukkitTask task = new BukkitRunnable() {
             @Override
             public void run() {

@@ -12,6 +12,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -111,12 +112,6 @@ public final class PlayerUtil {
             }
         }
 
-        // Count items in off-hand
-        ItemStack offHandItem = inventory.getItemInOffHand();
-        if (offHandItem.isSimilar(itemStack)) {
-            totalCount += offHandItem.getAmount();
-        }
-
         return totalCount;
     }
 
@@ -143,12 +138,6 @@ public final class PlayerUtil {
             if (item != null && hasNamespacedKey(item, key)) {
                 totalCount += item.getAmount();
             }
-        }
-
-        // Count item in off-hand
-        ItemStack offHandItem = inventory.getItemInOffHand();
-        if (offHandItem != null && hasNamespacedKey(offHandItem, key)) {
-            totalCount += offHandItem.getAmount();
         }
 
         return totalCount;
@@ -215,5 +204,95 @@ public final class PlayerUtil {
     }
 
 
+    public static int removeItemSlot(Player player, ItemStack itemStack) {
+        for (int i = 0; i < player.getInventory().getSize(); ++i) {
+            ItemStack current = player.getInventory().getItem(i);
+            if (current != null) {
+                ItemStack item = current.clone();
+                if (item.isSimilar(itemStack)) {
+                    int currentAmount = current.getAmount();
+                    if (currentAmount > 1) {
+                        current.setAmount(currentAmount - 1);
+                        return -1;
+                    } else {
+                        player.getInventory().setItem(i, null);
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
 
+    public static int removeItemStackSlot(Player player, ItemStack itemStack) {
+        for (int i = 0; i < player.getInventory().getSize(); ++i) {
+            ItemStack current = player.getInventory().getItem(i);
+            if (current != null) {
+                ItemStack item = current.clone();
+                if(ItemUtil.sameItemName(item, itemStack)) {
+                    int currentAmount = current.getAmount();
+                    if (currentAmount > 1) {
+                        current.setAmount(currentAmount - 1);
+                        return -1;
+                    } else {
+                        player.getInventory().setItem(i, null);
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    public static boolean isInventoryFull(Player player) {
+        return player.getInventory().firstEmpty() == -1;
+    }
+
+    public static void giveItem(Player player, ItemStack itemStack, int slot) {
+        int amount = itemStack.getAmount();
+        int maxStackSize = itemStack.getMaxStackSize();
+        int fullStacks = amount / maxStackSize;
+        int remainder = amount % maxStackSize;
+
+        for (int i = 0; i < fullStacks; i++) {
+            ItemStack stack = itemStack.clone();
+            stack.setAmount(maxStackSize);
+
+            if (isInventoryFull(player)) {
+                player.getWorld().dropItemNaturally(player.getLocation(), stack);
+            } else {
+                if (slot != -1 && player.getInventory().getItem(slot) == null) {
+                    player.getInventory().setItem(slot, stack);
+                    slot = -1; // Ensure we only use the specified slot once
+                } else {
+                    HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(stack);
+                    if (!remaining.isEmpty()) {
+                        for (ItemStack remainingStack : remaining.values()) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), remainingStack);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (remainder > 0) {
+            ItemStack stack = itemStack.clone();
+            stack.setAmount(remainder);
+
+            if (isInventoryFull(player)) {
+                player.getWorld().dropItemNaturally(player.getLocation(), stack);
+            } else {
+                if (slot != -1 && player.getInventory().getItem(slot) == null) {
+                    player.getInventory().setItem(slot, stack);
+                } else {
+                    HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(stack);
+                    if (!remaining.isEmpty()) {
+                        for (ItemStack remainingStack : remaining.values()) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), remainingStack);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

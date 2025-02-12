@@ -21,6 +21,11 @@ public class SelectorManager {
         plugin.getServer().getPluginManager().registerEvents(new SelectorListener(this), plugin);
     }
 
+    public SelectorManager(JavaPlugin plugin, ItemStack selectorItem) {
+        this.selectorItem = selectorItem;
+        plugin.getServer().getPluginManager().registerEvents(new SelectorListener(this), plugin);
+    }
+
     private ItemStack createSelectorItem() {
         return ItemStackBuilder.of(Material.BLAZE_ROD)
                 .name("&e&lRegion Selector")
