@@ -7,18 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import dev.gether.getutils.adapter.ServerSerializer;
+import dev.gether.getutils.adapter.ServerSerializerFactory;
 import dev.gether.getutils.annotation.Comment;
-import dev.gether.getutils.deserializer.*;
-import dev.gether.getutils.models.Cuboid;
-import dev.gether.getutils.serializer.*;
 import lombok.Getter;
 import lombok.experimental.SuperBuilder;
-import org.bukkit.Location;
-import org.bukkit.Sound;
-import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.potion.PotionEffect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +31,6 @@ import java.util.Map;
  * The GetConfig class provides functionality for loading, saving, and managing configuration data.
  * It supports both file-based and URL-based configurations, as well as in-memory content.
  */
-@SuperBuilder
 @Getter
 public class GetConfig {
     private static final Logger logger = LoggerFactory.getLogger(GetConfig.class);
@@ -47,6 +39,10 @@ public class GetConfig {
     private File file;
     private URL url;
     private String content;
+
+    @JsonIgnore
+    private boolean noAutoSave = false;
+
 
     /**
      * Constructs a new GetConfig instance and initializes the ObjectMapper.
@@ -70,45 +66,14 @@ public class GetConfig {
         mapper.findAndRegisterModules();
 
         SimpleModule module = new SimpleModule();
-        registerSerializers(module);
-        registerDeserializers(module);
+        ServerSerializer serializer = ServerSerializerFactory.createSerializer();
+        serializer.registerSerializers(module);
+        serializer.registerDeserializers(module);
 
         mapper.registerModule(module);
         return mapper;
     }
 
-    /**
-     * Registers custom serializers with the provided SimpleModule.
-     *
-     * @param module The SimpleModule to register serializers with.
-     */
-    private void registerSerializers(SimpleModule module) {
-        //module.addSerializer(ItemStack.class, new ItemStackSerializer());
-        module.addSerializer(ItemStack.class, new ItemStackSerializer());
-        module.addSerializer(Location.class, new LocationSerializer());
-        module.addSerializer(Cuboid.class, new CuboidSerializer());
-        module.addSerializer(AttributeModifier.class, new AttributeModifierSerializer());
-        module.addSerializer(PotionEffect.class, new PotionEffectSerializer());
-        module.addSerializer(Sound.class, new SoundSerializer());
-
-        module.addKeySerializer(Enchantment.class, new EnchantmentKeySerializer());
-    }
-
-    /**
-     * Registers custom deserializers with the provided SimpleModule.
-     *
-     * @param module The SimpleModule to register deserializers with.
-     */
-    private void registerDeserializers(SimpleModule module) {
-        //module.addDeserializer(ItemStack.class, new ItemStackDeserializer());
-        module.addDeserializer(ItemStack.class, new ItemStackDeserializer());
-        module.addDeserializer(Location.class, new LocationDeserializer());
-        module.addDeserializer(Cuboid.class, new CuboidDeserializer());
-        module.addDeserializer(AttributeModifier.class, new AttributeModifierDeserializer());
-        module.addDeserializer(PotionEffect.class, new PotionEffectDeserializer());
-        module.addKeyDeserializer(Enchantment.class, new EnchantmentKeyDeserializer());
-        module.addDeserializer(Sound.class, new SoundDeserializer());
-    }
 
     /**
      * Sets the file to be used for loading and saving the configuration.
@@ -153,17 +118,27 @@ public class GetConfig {
      * @throws RuntimeException if there's an error saving the configuration.
      */
     public void save() {
+        // Check if auto-save is disabled
+        if (noAutoSave) {
+            logger.debug("Auto-save is disabled. Skipping save operation.");
+            return;
+        }
+
         try {
             String yamlString = mapper.writeValueAsString(this);
             String processedYaml = insertComments(yamlString);
 
             if (file != null) {
+                logger.debug("Saving configuration to file: {}", file.getAbsolutePath());
                 Files.write(file.toPath(), processedYaml.getBytes(StandardCharsets.UTF_8));
             } else if (url != null) {
+                logger.debug("Saving configuration to URL: {}", url);
                 saveToUrl(processedYaml);
             } else {
+                logger.debug("Saving configuration to memory");
                 this.content = processedYaml;
             }
+            logger.debug("Configuration saved successfully");
         } catch (IOException e) {
             logger.error("Failed to save configuration", e);
             throw new RuntimeException("Failed to save configuration", e);
@@ -207,6 +182,10 @@ public class GetConfig {
      */
     public void load() {
         try {
+            boolean previousNoAutoSave = noAutoSave;
+            // Temporarily enable noAutoSave during loading
+            noAutoSave = true;
+
             if (file != null) {
                 loadFromFile();
             } else if (url != null) {
@@ -216,11 +195,15 @@ public class GetConfig {
             } else {
                 throw new IllegalStateException("Neither file, URL, nor content is set");
             }
+
+            // Restore previous noAutoSave value
+            noAutoSave = previousNoAutoSave;
         } catch (IOException e) {
             logger.error("Failed to load configuration", e);
             throw new RuntimeException("Failed to load configuration", e);
         }
     }
+
 
     /**
      * Loads the configuration from the specified URL.
@@ -228,16 +211,39 @@ public class GetConfig {
      * @throws IOException if there's an error reading from the URL.
      */
     private void loadFromUrl() throws IOException {
+        logger.debug("Loading configuration from URL: {}", url);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
+        connection.setRequestProperty("Accept", "application/yaml");
 
         try (InputStream is = connection.getInputStream()) {
             byte[] content = is.readAllBytes();
+
             if (content.length == 0) {
+                logger.info("Empty configuration received from server. Creating default configuration.");
+
+                // Temporarily disable noAutoSave to allow saving default config
+                boolean previousNoAutoSave = noAutoSave;
+                noAutoSave = false;
                 save();
+                noAutoSave = previousNoAutoSave;
+
                 return;
             }
-            mapper.readerForUpdating(this).readValue(content);
+
+            try {
+                mapper.readerForUpdating(this).readValue(content);
+                logger.info("Successfully loaded configuration from URL");
+                // Do NOT call save() here - this is likely what's causing the double operation
+            } catch (Exception e) {
+                logger.error("Error parsing configuration from URL: {}", url, e);
+
+                // Temporarily disable noAutoSave to allow saving default config
+                boolean previousNoAutoSave = noAutoSave;
+                noAutoSave = false;
+                save();
+                noAutoSave = previousNoAutoSave;
+            }
         }
     }
 

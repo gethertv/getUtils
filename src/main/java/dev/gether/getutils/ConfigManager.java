@@ -35,7 +35,6 @@ public class ConfigManager {
             throw new IllegalArgumentException("Configuration class cannot be null");
         }
 
-
         try {
             T configInstance = clazz.getDeclaredConstructor().newInstance();
             configConsumer.accept(configInstance);
