@@ -1,10 +1,7 @@
-package dev.gether.getutils.models.inventory;
+package dev.gether.getutils.inventory.item;
 
 import dev.gether.getutils.models.Item;
 import lombok.*;
-import org.bukkit.inventory.ItemStack;
-
-import java.io.Serializable;
 
 @Getter
 @Setter
@@ -13,6 +10,7 @@ import java.io.Serializable;
 @Builder
 public class StaticItem {
 
+    boolean enabled;
     Item item;
     int slot;
 

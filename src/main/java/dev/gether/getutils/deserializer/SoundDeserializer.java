@@ -9,6 +9,10 @@ import java.io.IOException;
 public class SoundDeserializer extends JsonDeserializer<Sound> {
     @Override
     public Sound deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-        return Sound.valueOf(jsonParser.getValueAsString());
+        try {
+            return Sound.valueOf(jsonParser.getText());
+        } catch (Exception e) {
+            return Sound.BLOCK_ANVIL_USE;
+        }
     }
 }

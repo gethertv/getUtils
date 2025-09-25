@@ -8,6 +8,7 @@ import dev.gether.getutils.utils.ConsoleColor;
 import dev.gether.getutils.utils.MessageUtil;
 import dev.gether.getutils.utils.ServerVersionUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
@@ -15,8 +16,10 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionType;
 
@@ -35,8 +38,6 @@ public class ItemStackBuilder {
     private PotionType potionType;
     private boolean extended;
     private boolean upgraded;
-
-
 
     private ItemStackBuilder(Material material) {
         Valid.checkNotNull(material, "Material cannot be null");
@@ -216,13 +217,100 @@ public class ItemStackBuilder {
         return this;
     }
 
+    /**
+     * Sets the color of leather armor using HEX color code.
+     *
+     * @param hexColor HEX color string (e.g., "#FF0000" or "FF0000")
+     * @return This ItemBuilder instance
+     */
+    public ItemStackBuilder color(String hexColor) {
+        if (itemMeta instanceof LeatherArmorMeta leatherMeta && hexColor != null && !hexColor.isEmpty()) {
+            try {
+                Color color = hexToColor(hexColor);
+                leatherMeta.setColor(color);
+            } catch (IllegalArgumentException e) {
+                MessageUtil.logMessage(ConsoleColor.RED, "[getUtils] Invalid HEX color format: " + hexColor + " - " + e.getMessage());
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Sets the color of a potion using HEX color code.
+     *
+     * @param hexColor HEX color string (e.g., "#FF0000" or "FF0000")
+     * @return This ItemBuilder instance
+     */
+    public ItemStackBuilder potionColor(String hexColor) {
+        if (itemMeta instanceof PotionMeta potionMeta && hexColor != null && !hexColor.isEmpty()) {
+            try {
+                Color color = hexToColor(hexColor);
+                potionMeta.setColor(color);
+            } catch (IllegalArgumentException e) {
+                MessageUtil.logMessage(ConsoleColor.RED, "[getUtils] Invalid HEX color format for potion: " + hexColor + " - " + e.getMessage());
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Sets the color of firework using HEX color code.
+     *
+     * @param hexColor HEX color string (e.g., "#FF0000" or "FF0000")
+     * @return This ItemBuilder instance
+     */
+    public ItemStackBuilder fireworkColor(String hexColor) {
+        if (itemMeta instanceof FireworkMeta fireworkMeta && hexColor != null && !hexColor.isEmpty()) {
+            try {
+                Color color = hexToColor(hexColor);
+                // Note: Firework colors are more complex and might require additional configuration
+                // This is a basic implementation - you may need to expand based on your needs
+                MessageUtil.logMessage(ConsoleColor.YELLOW, "[getUtils] Firework color setting requires additional implementation for full functionality");
+            } catch (IllegalArgumentException e) {
+                MessageUtil.logMessage(ConsoleColor.RED, "[getUtils] Invalid HEX color format for firework: " + hexColor + " - " + e.getMessage());
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Helper method to convert HEX color to Bukkit Color
+     *
+     * @param hex HEX color string (e.g., "#FF0000" or "FF0000")
+     * @return Bukkit Color object
+     */
+    private Color hexToColor(String hex) {
+        if (hex == null || hex.isEmpty()) {
+            return null;
+        }
+
+        // Remove # if present
+        if (hex.startsWith("#")) {
+            hex = hex.substring(1);
+        }
+
+        // Validate hex format
+        if (hex.length() != 6) {
+            throw new IllegalArgumentException("Invalid HEX color format. Expected 6 characters (e.g., 'FF0000')");
+        }
+
+        try {
+            int r = Integer.parseInt(hex.substring(0, 2), 16);
+            int g = Integer.parseInt(hex.substring(2, 4), 16);
+            int b = Integer.parseInt(hex.substring(4, 6), 16);
+
+            return Color.fromRGB(r, g, b);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid HEX color format: " + hex, e);
+        }
+    }
+
     private void applyNewSkullTexture(SkullMeta skullMeta, String base64, UUID hashAsId) {
         try {
             // Use reflection to access new API methods
             Class<?> bukkitClass = Class.forName("org.bukkit.Bukkit");
             Method createProfileMethod = bukkitClass.getMethod("createPlayerProfile", UUID.class);
             Object playerProfile = createProfileMethod.invoke(null, hashAsId);
-
 
             Class<?> playerProfileClass = Class.forName("org.bukkit.profile.PlayerProfile");
             Method getTexturesMethod = playerProfileClass.getMethod("getTextures");
@@ -238,7 +326,6 @@ public class ItemStackBuilder {
             Method setOwnerProfileMethod = skullMetaClass.getMethod("setOwnerProfile", playerProfileClass);
             setOwnerProfileMethod.invoke(skullMeta, playerProfile);
 
-
         } catch (Exception e) {
             MessageUtil.logMessage(ConsoleColor.RED, "[getUtils] Failed to set new skull texture: " + e.getMessage());
         }
@@ -248,7 +335,6 @@ public class ItemStackBuilder {
         String decoded = new String(Base64.getDecoder().decode(base64));
         return new URL(decoded.substring("{\"textures\":{\"SKIN\":{\"url\":\"".length(), decoded.length() - "\"}}}".length()));
     }
-
 
     private void applyLegacySkullTexture(String base64, UUID hashAsId) {
         try {
@@ -273,7 +359,6 @@ public class ItemStackBuilder {
         }
         return this;
     }
-
 
     /**
      * Builds the final ItemStack with all applied properties.
@@ -310,5 +395,4 @@ public class ItemStackBuilder {
 
         return itemStack;
     }
-
 }

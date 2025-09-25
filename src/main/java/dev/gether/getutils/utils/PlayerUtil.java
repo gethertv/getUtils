@@ -26,13 +26,15 @@ public final class PlayerUtil {
      * @param player The player to whose inventory items will be added
      * @param items The items to add
      */
-    public static void addItems(Player player, ItemStack... items) {
+    public static void addItems(Player player, boolean ground, ItemStack... items) {
         Map<Integer, ItemStack> notAdded = player.getInventory().addItem(items);
 
         if (!notAdded.isEmpty()) {
             Location dropLocation = player.getLocation();
-            for (ItemStack item : notAdded.values()) {
-                player.getWorld().dropItemNaturally(dropLocation, item);
+            if(ground) {
+                for (ItemStack item : notAdded.values()) {
+                    player.getWorld().dropItemNaturally(dropLocation, item);
+                }
             }
         }
     }
@@ -248,7 +250,7 @@ public final class PlayerUtil {
         return player.getInventory().firstEmpty() == -1;
     }
 
-    public static void giveItem(Player player, ItemStack itemStack, int slot) {
+    public static void giveItem(Player player, ItemStack itemStack, int slot, boolean ground) {
         int amount = itemStack.getAmount();
         int maxStackSize = itemStack.getMaxStackSize();
         int fullStacks = amount / maxStackSize;
@@ -258,13 +260,13 @@ public final class PlayerUtil {
             ItemStack stack = itemStack.clone();
             stack.setAmount(maxStackSize);
 
-            if (isInventoryFull(player)) {
+            if (isInventoryFull(player) && ground) {
                 player.getWorld().dropItemNaturally(player.getLocation(), stack);
             } else {
                 if (slot != -1 && player.getInventory().getItem(slot) == null) {
                     player.getInventory().setItem(slot, stack);
                     slot = -1; // Ensure we only use the specified slot once
-                } else {
+                } else if(ground) {
                     HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(stack);
                     if (!remaining.isEmpty()) {
                         for (ItemStack remainingStack : remaining.values()) {
@@ -279,12 +281,12 @@ public final class PlayerUtil {
             ItemStack stack = itemStack.clone();
             stack.setAmount(remainder);
 
-            if (isInventoryFull(player)) {
+            if (isInventoryFull(player) && ground) {
                 player.getWorld().dropItemNaturally(player.getLocation(), stack);
             } else {
                 if (slot != -1 && player.getInventory().getItem(slot) == null) {
                     player.getInventory().setItem(slot, stack);
-                } else {
+                } else if(ground) {
                     HashMap<Integer, ItemStack> remaining = player.getInventory().addItem(stack);
                     if (!remaining.isEmpty()) {
                         for (ItemStack remainingStack : remaining.values()) {

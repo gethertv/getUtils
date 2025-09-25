@@ -1,24 +1,10 @@
 package dev.gether.getutils;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import dev.gether.getutils.annotation.Comment;
-import dev.gether.getutils.deserializer.*;
-import dev.gether.getutils.models.Cuboid;
-import dev.gether.getutils.serializer.*;
 import lombok.Getter;
 import lombok.experimental.SuperBuilder;
-import org.bukkit.Location;
-import org.bukkit.Sound;
-import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.potion.PotionEffect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,66 +34,14 @@ public class GetConfig {
     private URL url;
     private String content;
 
+    private boolean isLoading = false;
+    private boolean isSaving = false;
+
     /**
      * Constructs a new GetConfig instance and initializes the ObjectMapper.
      */
     public GetConfig() {
-        this.mapper = createObjectMapper();
-    }
-
-    /**
-     * Creates and configures an ObjectMapper for YAML serialization and deserialization.
-     *
-     * @return A configured ObjectMapper instance.
-     */
-    private ObjectMapper createObjectMapper() {
-        YAMLFactory yamlFactory = new YAMLFactory();
-        yamlFactory.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
-
-        ObjectMapper mapper = new ObjectMapper(yamlFactory);
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        mapper.findAndRegisterModules();
-
-        SimpleModule module = new SimpleModule();
-        registerSerializers(module);
-        registerDeserializers(module);
-
-        mapper.registerModule(module);
-        return mapper;
-    }
-
-    /**
-     * Registers custom serializers with the provided SimpleModule.
-     *
-     * @param module The SimpleModule to register serializers with.
-     */
-    private void registerSerializers(SimpleModule module) {
-        //module.addSerializer(ItemStack.class, new ItemStackSerializer());
-        module.addSerializer(ItemStack.class, new ItemStackSerializer());
-        module.addSerializer(Location.class, new LocationSerializer());
-        module.addSerializer(Cuboid.class, new CuboidSerializer());
-        module.addSerializer(AttributeModifier.class, new AttributeModifierSerializer());
-        module.addSerializer(PotionEffect.class, new PotionEffectSerializer());
-        module.addSerializer(Sound.class, new SoundSerializer());
-
-        module.addKeySerializer(Enchantment.class, new EnchantmentKeySerializer());
-    }
-
-    /**
-     * Registers custom deserializers with the provided SimpleModule.
-     *
-     * @param module The SimpleModule to register deserializers with.
-     */
-    private void registerDeserializers(SimpleModule module) {
-        //module.addDeserializer(ItemStack.class, new ItemStackDeserializer());
-        module.addDeserializer(ItemStack.class, new ItemStackDeserializer());
-        module.addDeserializer(Location.class, new LocationDeserializer());
-        module.addDeserializer(Cuboid.class, new CuboidDeserializer());
-        module.addDeserializer(AttributeModifier.class, new AttributeModifierDeserializer());
-        module.addDeserializer(PotionEffect.class, new PotionEffectDeserializer());
-        module.addKeyDeserializer(Enchantment.class, new EnchantmentKeyDeserializer());
-        module.addDeserializer(Sound.class, new SoundDeserializer());
+        this.mapper = ObjectMapperSingleton.getInstance();
     }
 
     /**
@@ -153,7 +87,13 @@ public class GetConfig {
      * @throws RuntimeException if there's an error saving the configuration.
      */
     public void save() {
+        if (isSaving) {
+            logger.warn("Recursive save() call detected, skipping");
+            return;
+        }
+
         try {
+            isSaving = true;
             String yamlString = mapper.writeValueAsString(this);
             String processedYaml = insertComments(yamlString);
 
@@ -167,6 +107,8 @@ public class GetConfig {
         } catch (IOException e) {
             logger.error("Failed to save configuration", e);
             throw new RuntimeException("Failed to save configuration", e);
+        } finally {
+            isSaving = false;
         }
     }
 
@@ -205,12 +147,26 @@ public class GetConfig {
      *
      * @throws RuntimeException if there's an error loading the configuration or if no source is set.
      */
+    /**
+     * Loads the configuration from the specified file, URL, or in-memory content.
+     *
+     * @throws RuntimeException if there's an error loading the configuration or if no source is set.
+     */
     public void load() {
+        if (isLoading) {
+            logger.warn("Recursive load() call detected, skipping");
+            return;
+        }
+
+        boolean wasEmpty = false;
+
         try {
+            isLoading = true;
             if (file != null) {
+                wasEmpty = !file.exists() || Files.size(file.toPath()) == 0;
                 loadFromFile();
             } else if (url != null) {
-                loadFromUrl();
+                wasEmpty = loadFromUrl(); // Zwraca true jeśli było puste
             } else if (content != null) {
                 mapper.readerForUpdating(this).readValue(content);
             } else {
@@ -219,27 +175,39 @@ public class GetConfig {
         } catch (IOException e) {
             logger.error("Failed to load configuration", e);
             throw new RuntimeException("Failed to load configuration", e);
+        } finally {
+            isLoading = false;
+        }
+
+        // Automatycznie zapisz domyślne wartości jeśli konfiguracja była pusta
+        if (wasEmpty) {
+            logger.info("Configuration was empty, saving default values to: {}", url != null ? url : file);
+            save();
         }
     }
 
     /**
      * Loads the configuration from the specified URL.
      *
+     * @return true if the content was empty, false otherwise
      * @throws IOException if there's an error reading from the URL.
      */
-    private void loadFromUrl() throws IOException {
+    private boolean loadFromUrl() throws IOException {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
 
         try (InputStream is = connection.getInputStream()) {
             byte[] content = is.readAllBytes();
             if (content.length == 0) {
-                save();
-                return;
+                logger.info("URL returned empty content: {}", url);
+                return true; // Oznacza, że treść była pusta
             }
             mapper.readerForUpdating(this).readValue(content);
+            logger.info("Successfully loaded configuration from URL: {}", url);
+            return false; // Treść nie była pusta
         }
     }
+
 
     /**
      * Loads the configuration from the specified file.
@@ -248,7 +216,6 @@ public class GetConfig {
      */
     private void loadFromFile() throws IOException {
         if (!file.exists() || Files.size(file.toPath()) == 0) {
-            save();
             return;
         }
         mapper.readerForUpdating(this).readValue(file);
@@ -275,7 +242,6 @@ public class GetConfig {
             throw new IOException("HTTP error code: " + responseCode);
         }
     }
-
 
     /**
      * Converts the current configuration to a YAML string.

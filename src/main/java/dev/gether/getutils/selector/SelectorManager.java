@@ -71,7 +71,7 @@ public class SelectorManager {
     }
 
     public ItemStack getSelectorItem() {
-        return selectorItem.clone();
+        return selectorItem;
     }
 
     private String formatLocation(org.bukkit.Location loc) {

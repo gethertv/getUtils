@@ -1,5 +1,6 @@
 package dev.gether.getutils;
 
+import java.lang.reflect.Field;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -35,17 +36,40 @@ public class ConfigManager {
             throw new IllegalArgumentException("Configuration class cannot be null");
         }
 
-
+        T configInstance = null;
         try {
-            T configInstance = clazz.getDeclaredConstructor().newInstance();
+            configInstance = clazz.getDeclaredConstructor().newInstance();
             configConsumer.accept(configInstance);
             return configInstance;
         } catch (ReflectiveOperationException e) {
             LOGGER.log(Level.SEVERE, "Failed to create configuration instance of " + clazz.getName(), e);
+            cleanup(configInstance);
             return null;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "An unexpected error occurred while creating configuration instance of " + clazz.getName(), e);
+            cleanup(configInstance);
             return null;
+        }
+    }
+
+    private static <T extends GetConfig> void cleanup(T configInstance) {
+        if (configInstance != null) {
+            try {
+                Field fileField = GetConfig.class.getDeclaredField("file");
+                Field urlField = GetConfig.class.getDeclaredField("url");
+                Field contentField = GetConfig.class.getDeclaredField("content");
+
+                fileField.setAccessible(true);
+                urlField.setAccessible(true);
+                contentField.setAccessible(true);
+
+                fileField.set(configInstance, null);
+                urlField.set(configInstance, null);
+                contentField.set(configInstance, null);
+
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to cleanup config instance", e);
+            }
         }
     }
 }

@@ -9,6 +9,19 @@ import java.io.IOException;
 public class SoundSerializer extends JsonSerializer<Sound> {
     @Override
     public void serialize(Sound sound, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-        jsonGenerator.writeString(sound.name());
+        if (sound == null) {
+            jsonGenerator.writeNull();
+            return;
+        }
+        try {
+            String soundName = sound.name();
+            jsonGenerator.writeString(soundName);
+        } catch (Throwable e) {
+            try {
+                jsonGenerator.writeString(Sound.BLOCK_ANVIL_USE.name());
+            } catch (Throwable fallbackError) {
+                jsonGenerator.writeString("BLOCK_ANVIL_USE");
+            }
+        }
     }
 }

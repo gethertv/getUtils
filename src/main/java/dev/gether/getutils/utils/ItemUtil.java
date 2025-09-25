@@ -103,6 +103,16 @@ public class ItemUtil {
         }
     }
 
+    public static String getItemName(ItemStack itemStack) {
+        if(!itemStack.hasItemMeta()) {
+            return itemStack.getType().name();
+        }
+        ItemMeta meta = itemStack.getItemMeta();
+        if(meta==null) return itemStack.getType().name();
+
+        return meta.hasDisplayName() ? meta.getDisplayName() : itemStack.getType().name();
+    }
+
     public static int calcItem(Player player, ItemStack calcStack)
     {
         int amount = 0;

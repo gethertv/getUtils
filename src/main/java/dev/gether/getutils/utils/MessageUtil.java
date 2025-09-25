@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 
@@ -28,6 +29,14 @@ public final class MessageUtil {
      */
     public static void logMessage(String consoleColor, String message) {
         LOG.info(consoleColor + message + ConsoleColor.RESET);
+    }
+
+
+    public static void sendMessage(UUID playerUUID, String message) {
+        Player player = Bukkit.getPlayer(playerUUID);
+        if(player == null) return;
+
+        sendMessage(player, message);
     }
 
     /**
