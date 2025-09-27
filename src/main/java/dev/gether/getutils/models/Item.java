@@ -1,11 +1,6 @@
 package dev.gether.getutils.models;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import dev.gether.getutils.builder.ItemStackBuilder;
-import dev.gether.getutils.deserializer.PotionEffectTypeKeyDeserializer;
-import dev.gether.getutils.serializer.PotionEffectTypeKeySerializer;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.bukkit.Color;
@@ -51,7 +46,6 @@ public class Item {
     String potionHexColor;  // For potion colors
     String fireworkHexColor; // For firework colors
 
-    @JsonIgnore
     public ItemStack getItemStack() {
         ItemStackBuilder builder = ItemStackBuilder
                 .of(material)
@@ -92,7 +86,6 @@ public class Item {
      * @param hex HEX color string (e.g., "#FF0000" or "FF0000")
      * @return Bukkit Color object
      */
-    @JsonIgnore
     public static Color hexToColor(String hex) {
         if (hex == null || hex.isEmpty()) {
             return null;

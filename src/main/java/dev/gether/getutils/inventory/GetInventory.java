@@ -59,11 +59,9 @@ public class GetInventory implements Listener {
         InventoryHolder holder = inventory.getHolder();
 
         if (holder instanceof AbstractInventoryHolder abstractHolder) {
-            // Cleanup GUI - to załatwia wszystko!
             try {
-                abstractHolder.cleanup();
+                abstractHolder.close();
             } catch (Exception e) {
-                // Log błąd ale nie crashuj
                 if (pluginInstance != null) {
                     pluginInstance.getLogger().warning("Error during inventory cleanup: " + e.getMessage());
                 }

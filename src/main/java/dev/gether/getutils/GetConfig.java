@@ -1,56 +1,225 @@
 package dev.gether.getutils;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.gether.getutils.annotation.Comment;
+import dev.gether.getutils.annotation.YamlIgnore;
 import lombok.Getter;
-import lombok.experimental.SuperBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.bukkit.Location;
+import org.bukkit.Sound;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.NamespacedKey;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.representer.Represent;
+import org.yaml.snakeyaml.representer.Representer;
+import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.Tag;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.logging.Logger;
 
-/**
- * The GetConfig class provides functionality for loading, saving, and managing configuration data.
- * It supports both file-based and URL-based configurations, as well as in-memory content.
- */
-@SuperBuilder
 @Getter
 public class GetConfig {
-    private static final Logger logger = LoggerFactory.getLogger(GetConfig.class);
+    private static final Logger logger = Logger.getLogger(GetConfig.class.getName());
 
-    private final ObjectMapper mapper;
+    private final Yaml yaml;
     private File file;
     private URL url;
     private String content;
-
     private boolean isLoading = false;
     private boolean isSaving = false;
 
-    /**
-     * Constructs a new GetConfig instance and initializes the ObjectMapper.
-     */
     public GetConfig() {
-        this.mapper = ObjectMapperSingleton.getInstance();
+        this.yaml = createYaml();
     }
 
-    /**
-     * Sets the file to be used for loading and saving the configuration.
-     * If the file doesn't exist, it will be created along with its parent directories.
-     *
-     * @param file The File object representing the configuration file.
-     * @throws RuntimeException if there's an error creating the file.
-     */
+    private Yaml createYaml() {
+        DumperOptions dumperOptions = new DumperOptions();
+        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        dumperOptions.setPrettyFlow(true);
+        dumperOptions.setIndent(2);
+
+        // Force empty collections to use block style
+        dumperOptions.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
+        dumperOptions.setWidth(Integer.MAX_VALUE); // Don't wrap lines
+
+        LoaderOptions loaderOptions = new LoaderOptions();
+
+        CustomRepresenter representer = new CustomRepresenter(dumperOptions);
+        CustomConstructor constructor = new CustomConstructor(loaderOptions);
+
+        return new Yaml(constructor, representer, dumperOptions, loaderOptions);
+    }
+
+
+    private class CustomRepresenter extends Representer {
+        public CustomRepresenter(DumperOptions options) {
+            super(options);
+
+            this.multiRepresenters.put(Location.class, new RepresentLocation());
+            this.multiRepresenters.put(ItemStack.class, new RepresentItemStack());
+            this.multiRepresenters.put(PotionEffect.class, new RepresentPotionEffect());
+            this.multiRepresenters.put(AttributeModifier.class, new RepresentAttributeModifier());
+            this.multiRepresenters.put(Enchantment.class, new RepresentEnchantment());
+            this.multiRepresenters.put(Sound.class, new RepresentSound());
+
+            this.multiRepresenters.put(int[].class, new RepresentIntArray());
+            this.multiRepresenters.put(long[].class, new RepresentLongArray());
+            this.multiRepresenters.put(double[].class, new RepresentDoubleArray());
+            this.multiRepresenters.put(String[].class, new RepresentStringArray());
+            this.multiRepresenters.put(Object[].class, new RepresentObjectArray());
+
+            this.multiRepresenters.put(List.class, new RepresentList());
+            this.multiRepresenters.put(Set.class, new RepresentSet());
+
+            this.multiRepresenters.put(Object.class, new RepresentCustomObject());
+        }
+
+        private class RepresentIntArray implements Represent {
+            public Node representData(Object data) {
+                int[] array = (int[]) data;
+                List<Integer> list = new ArrayList<>();
+                for (int value : array) {
+                    list.add(value);
+                }
+                if (list.isEmpty()) {
+                    return representSequence(Tag.SEQ, list, DumperOptions.FlowStyle.FLOW);
+                } else {
+                    return representSequence(Tag.SEQ, list, DumperOptions.FlowStyle.BLOCK);
+                }
+            }
+        }
+
+        private class RepresentLongArray implements Represent {
+            public Node representData(Object data) {
+                long[] array = (long[]) data;
+                List<Long> list = new ArrayList<>();
+                for (long value : array) {
+                    list.add(value);
+                }
+                return representSequence(Tag.SEQ, list, list.isEmpty() ? DumperOptions.FlowStyle.FLOW : DumperOptions.FlowStyle.BLOCK);
+            }
+        }
+
+        private class RepresentDoubleArray implements Represent {
+            public Node representData(Object data) {
+                double[] array = (double[]) data;
+                List<Double> list = new ArrayList<>();
+                for (double value : array) {
+                    list.add(value);
+                }
+                return representSequence(Tag.SEQ, list, list.isEmpty() ? DumperOptions.FlowStyle.FLOW : DumperOptions.FlowStyle.BLOCK);
+            }
+        }
+
+        private class RepresentStringArray implements Represent {
+            public Node representData(Object data) {
+                String[] array = (String[]) data;
+                List<String> list = Arrays.asList(array);
+                return representSequence(Tag.SEQ, list, list.isEmpty() ? DumperOptions.FlowStyle.FLOW : DumperOptions.FlowStyle.BLOCK);
+            }
+        }
+
+        private class RepresentObjectArray implements Represent {
+            public Node representData(Object data) {
+                Object[] array = (Object[]) data;
+                List<Object> list = Arrays.asList(array);
+                return representSequence(Tag.SEQ, list, list.isEmpty() ? DumperOptions.FlowStyle.FLOW : DumperOptions.FlowStyle.BLOCK);
+            }
+        }
+
+        private class RepresentList implements Represent {
+            public Node representData(Object data) {
+                List<?> list = (List<?>) data;
+                if (list.isEmpty()) {
+                    return representSequence(getTag(data.getClass(), Tag.SEQ), list, DumperOptions.FlowStyle.FLOW);
+                } else {
+                    return representSequence(getTag(data.getClass(), Tag.SEQ), list, DumperOptions.FlowStyle.BLOCK);
+                }
+            }
+        }
+
+        private class RepresentSet implements Represent {
+            public Node representData(Object data) {
+                Set<?> set = (Set<?>) data;
+                List<Object> list = new ArrayList<>(set);
+                if (list.isEmpty()) {
+                    return representSequence(getTag(data.getClass(), Tag.SEQ), list, DumperOptions.FlowStyle.FLOW);
+                } else {
+                    return representSequence(getTag(data.getClass(), Tag.SEQ), list, DumperOptions.FlowStyle.BLOCK);
+                }
+            }
+        }
+
+        private class RepresentLocation implements Represent {
+            public Node representData(Object data) {
+                return represent(((Location) data).serialize());
+            }
+        }
+
+        private class RepresentItemStack implements Represent {
+            public Node representData(Object data) {
+                return represent(((ItemStack) data).serialize());
+            }
+        }
+
+        private class RepresentPotionEffect implements Represent {
+            public Node representData(Object data) {
+                return represent(((PotionEffect) data).serialize());
+            }
+        }
+
+        private class RepresentAttributeModifier implements Represent {
+            public Node representData(Object data) {
+                return represent(((AttributeModifier) data).serialize());
+            }
+        }
+
+        private class RepresentEnchantment implements Represent {
+            public Node representData(Object data) {
+                return representScalar(Tag.STR, ((Enchantment) data).getKey().getKey());
+            }
+        }
+
+        private class RepresentSound implements Represent {
+            public Node representData(Object data) {
+                return representScalar(Tag.STR, ((Sound) data).name());
+            }
+        }
+
+        private class RepresentCustomObject implements Represent {
+            public Node representData(Object data) {
+                if (isCustomObject(data)) {
+                    try {
+                        Map<String, Object> objectMap = objectToMap(data);
+                        return represent(objectMap);
+                    } catch (Exception e) {
+                        return representScalar(Tag.STR, data.toString());
+                    }
+                }
+                return null;
+            }
+        }
+    }
+
+    private static class CustomConstructor extends Constructor {
+        public CustomConstructor(LoaderOptions loaderOptions) {
+            super(loaderOptions);
+        }
+    }
+
     public void setFile(File file) {
         this.file = file;
         this.url = null;
@@ -59,43 +228,29 @@ public class GetConfig {
                 Files.createDirectories(file.getParentFile().toPath());
                 Files.createFile(file.toPath());
             } catch (IOException e) {
-                logger.error("Failed to create file: {}", file.getAbsolutePath(), e);
                 throw new RuntimeException("Failed to create file", e);
             }
         }
     }
 
-    /**
-     * Sets the URL to be used for loading and saving the configuration.
-     *
-     * @param urlString The URL string representing the configuration source.
-     * @throws RuntimeException if the URL is invalid.
-     */
     public void setUrl(String urlString) {
         try {
             this.url = new URL(urlString);
             this.file = null;
         } catch (IOException e) {
-            logger.error("Invalid URL: {}", urlString, e);
             throw new RuntimeException("Invalid URL: " + urlString, e);
         }
     }
 
-    /**
-     * Saves the current configuration to the specified file, URL, or in-memory content.
-     *
-     * @throws RuntimeException if there's an error saving the configuration.
-     */
     public void save() {
-        if (isSaving) {
-            logger.warn("Recursive save() call detected, skipping");
-            return;
-        }
+        if (isSaving) return;
 
         try {
             isSaving = true;
-            String yamlString = mapper.writeValueAsString(this);
-            String processedYaml = insertComments(yamlString);
+
+            Map<String, Object> dataMap = objectToMap(this);
+            String yamlContent = yaml.dump(dataMap);
+            String processedYaml = insertComments(yamlContent);
 
             if (file != null) {
                 Files.write(file.toPath(), processedYaml.getBytes(StandardCharsets.UTF_8));
@@ -104,21 +259,308 @@ public class GetConfig {
             } else {
                 this.content = processedYaml;
             }
-        } catch (IOException e) {
-            logger.error("Failed to save configuration", e);
+        } catch (Exception e) {
             throw new RuntimeException("Failed to save configuration", e);
         } finally {
             isSaving = false;
         }
     }
 
-    /**
-     * Inserts comments into the YAML string based on @Comment annotations.
-     *
-     * @param yamlString The YAML string to insert comments into.
-     * @return A new YAML string with comments inserted.
-     */
+    public void load() {
+        if (isLoading) return;
+
+        boolean wasEmpty = false;
+
+        try {
+            isLoading = true;
+            String yamlContent = null;
+
+            if (file != null) {
+                if (!file.exists() || Files.size(file.toPath()) == 0) {
+                    wasEmpty = true;
+                } else {
+                    yamlContent = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+                }
+            } else if (url != null) {
+                yamlContent = loadFromUrl();
+                wasEmpty = (yamlContent == null || yamlContent.trim().isEmpty());
+            } else if (content != null) {
+                yamlContent = content;
+            }
+
+            if (yamlContent != null && !yamlContent.trim().isEmpty()) {
+                Object data = yaml.load(yamlContent);
+
+                if (data instanceof Map) {
+                    mapToObject((Map<String, Object>) data, this);
+                }
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load configuration", e);
+        } finally {
+            isLoading = false;
+        }
+
+        if (wasEmpty) {
+            save();
+        }
+    }
+
+    private Map<String, Object> objectToMap(Object obj) throws Exception {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        for (Field field : obj.getClass().getDeclaredFields()) {
+            if (shouldSkipField(field)) continue;
+
+            field.setAccessible(true);
+            Object value = field.get(obj);
+
+            if (value != null) {
+                result.put(field.getName(), serializeValue(value));
+            }
+        }
+
+        return result;
+    }
+
+    private void mapToObject(Map<String, Object> data, Object target) throws Exception {
+        for (Field field : target.getClass().getDeclaredFields()) {
+            if (shouldSkipField(field)) continue;
+
+            String fieldName = field.getName();
+            if (!data.containsKey(fieldName)) continue;
+
+            field.setAccessible(true);
+            Object value = data.get(fieldName);
+            Object convertedValue = deserializeValue(value, field.getType(), field.getGenericType());
+
+            field.set(target, convertedValue);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object serializeValue(Object value) throws Exception {
+        if (value == null) return null;
+
+        // Array types - convert to lists
+        if (value instanceof int[]) {
+            int[] array = (int[]) value;
+            List<Integer> list = new ArrayList<>();
+            for (int val : array) {
+                list.add(val);
+            }
+            return list;
+        } else if (value instanceof long[]) {
+            long[] array = (long[]) value;
+            List<Long> list = new ArrayList<>();
+            for (long val : array) {
+                list.add(val);
+            }
+            return list;
+        } else if (value instanceof double[]) {
+            double[] array = (double[]) value;
+            List<Double> list = new ArrayList<>();
+            for (double val : array) {
+                list.add(val);
+            }
+            return list;
+        } else if (value instanceof String[]) {
+            return Arrays.asList((String[]) value);
+        } else if (value instanceof Object[]) {
+            Object[] array = (Object[]) value;
+            List<Object> list = new ArrayList<>();
+            for (Object val : array) {
+                list.add(serializeValue(val)); // Recursively serialize
+            }
+            return list;
+        }
+
+        // Bukkit types
+        else if (value instanceof Location) {
+            return ((Location) value).serialize();
+        } else if (value instanceof ItemStack) {
+            return ((ItemStack) value).serialize();
+        } else if (value instanceof PotionEffect) {
+            return ((PotionEffect) value).serialize();
+        } else if (value instanceof AttributeModifier) {
+            return ((AttributeModifier) value).serialize();
+        } else if (value instanceof Enchantment) {
+            return ((Enchantment) value).getKey().getKey();
+        } else if (value instanceof Sound) {
+            return ((Sound) value).name();
+        } else if (value instanceof Enum) {
+            return ((Enum<?>) value).name();
+        } else if (value instanceof Collection) {
+            List<Object> list = new ArrayList<>();
+            for (Object item : (Collection<?>) value) {
+                list.add(serializeValue(item));
+            }
+            return list;
+        } else if (value instanceof Map) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                String key = entry.getKey().toString();
+                map.put(key, serializeValue(entry.getValue()));
+            }
+            return map;
+        } else if (isCustomObject(value)) {
+            return objectToMap(value);
+        }
+
+        return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object deserializeValue(Object value, Class<?> targetType, Type genericType) throws Exception {
+        if (value == null) return null;
+
+        // Array types - convert lists back to arrays
+        if (targetType == int[].class && value instanceof List) {
+            List<Number> list = (List<Number>) value;
+            return list.stream().mapToInt(Number::intValue).toArray();
+        } else if (targetType == long[].class && value instanceof List) {
+            List<Number> list = (List<Number>) value;
+            return list.stream().mapToLong(Number::longValue).toArray();
+        } else if (targetType == double[].class && value instanceof List) {
+            List<Number> list = (List<Number>) value;
+            return list.stream().mapToDouble(Number::doubleValue).toArray();
+        } else if (targetType == String[].class && value instanceof List) {
+            List<String> list = (List<String>) value;
+            return list.toArray(new String[0]);
+        } else if (targetType.isArray() && value instanceof List) {
+            List<Object> list = (List<Object>) value;
+            Class<?> componentType = targetType.getComponentType();
+            Object array = java.lang.reflect.Array.newInstance(componentType, list.size());
+            for (int i = 0; i < list.size(); i++) {
+                java.lang.reflect.Array.set(array, i, deserializeValue(list.get(i), componentType, null));
+            }
+            return array;
+        }
+
+        else if (targetType == Location.class && value instanceof Map) {
+            return Location.deserialize((Map<String, Object>) value);
+        } else if (targetType == ItemStack.class && value instanceof Map) {
+            return ItemStack.deserialize((Map<String, Object>) value);
+        } else if (targetType == PotionEffect.class && value instanceof Map) {
+            return new PotionEffect((Map<String, Object>) value);
+        } else if (targetType == AttributeModifier.class && value instanceof Map) {
+            return deserializeAttributeModifier((Map<String, Object>) value);
+        } else if (targetType == Enchantment.class && value instanceof String) {
+            return Enchantment.getByKey(NamespacedKey.minecraft((String) value));
+        } else if (targetType == Sound.class && value instanceof String) {
+            return Sound.valueOf((String) value);
+        } else if (targetType.isEnum() && value instanceof String) {
+            return Enum.valueOf((Class<Enum>) targetType, (String) value);
+        } else if (value instanceof List) {
+            List<?> sourceList = (List<?>) value;
+
+            if (Set.class.isAssignableFrom(targetType)) {
+                Set<Object> resultSet = new LinkedHashSet<>();
+
+                Class<?> elementType = Object.class;
+                if (genericType instanceof ParameterizedType) {
+                    ParameterizedType paramType = (ParameterizedType) genericType;
+                    Type[] typeArgs = paramType.getActualTypeArguments();
+                    if (typeArgs.length > 0 && typeArgs[0] instanceof Class) {
+                        elementType = (Class<?>) typeArgs[0];
+                    }
+                }
+
+                for (Object item : sourceList) {
+                    if (item instanceof Map && isCustomClass(elementType)) {
+                        Object instance = elementType.getDeclaredConstructor().newInstance();
+                        mapToObject((Map<String, Object>) item, instance);
+                        resultSet.add(instance);
+                    } else {
+                        resultSet.add(deserializeValue(item, elementType, null));
+                    }
+                }
+                return resultSet;
+            } else if (List.class.isAssignableFrom(targetType)) {
+                List<Object> resultList = new ArrayList<>();
+
+                Class<?> elementType = Object.class;
+                if (genericType instanceof ParameterizedType) {
+                    ParameterizedType paramType = (ParameterizedType) genericType;
+                    Type[] typeArgs = paramType.getActualTypeArguments();
+                    if (typeArgs.length > 0 && typeArgs[0] instanceof Class) {
+                        elementType = (Class<?>) typeArgs[0];
+                    }
+                }
+
+                for (Object item : sourceList) {
+                    if (item instanceof Map && isCustomClass(elementType)) {
+                        Object instance = elementType.getDeclaredConstructor().newInstance();
+                        mapToObject((Map<String, Object>) item, instance);
+                        resultList.add(instance);
+                    } else {
+                        resultList.add(deserializeValue(item, elementType, null));
+                    }
+                }
+                return resultList;
+            } else if (Collection.class.isAssignableFrom(targetType)) {
+                return new ArrayList<>(sourceList);
+            }
+        } else if (value instanceof Map && isCustomClass(targetType)) {
+            Object instance = targetType.getDeclaredConstructor().newInstance();
+            mapToObject((Map<String, Object>) value, instance);
+            return instance;
+        }
+
+        // Basic type conversion
+        if (targetType == String.class) {
+            return value.toString();
+        } else if (targetType == Integer.class || targetType == int.class) {
+            return value instanceof Number ? ((Number) value).intValue() : Integer.parseInt(value.toString());
+        } else if (targetType == Double.class || targetType == double.class) {
+            return value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString());
+        } else if (targetType == Boolean.class || targetType == boolean.class) {
+            return value instanceof Boolean ? value : Boolean.parseBoolean(value.toString());
+        }
+
+        return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object deserializeValue(Object value, Class<?> targetType) throws Exception {
+        return deserializeValue(value, targetType, null);
+    }
+
+    private AttributeModifier deserializeAttributeModifier(Map<String, Object> data) {
+        String name = (String) data.get("name");
+        double amount = ((Number) data.get("amount")).doubleValue();
+        String operationStr = (String) data.get("operation");
+        String slotStr = (String) data.get("slot");
+
+        AttributeModifier.Operation operation = AttributeModifier.Operation.valueOf(operationStr);
+        org.bukkit.inventory.EquipmentSlot slot = org.bukkit.inventory.EquipmentSlot.valueOf(slotStr.toUpperCase());
+
+        return new AttributeModifier(UUID.randomUUID(), name, amount, operation, slot);
+    }
+
+    private boolean isCustomObject(Object value) {
+        String className = value.getClass().getName();
+        return !className.startsWith("java.") &&
+                !className.startsWith("javax.") &&
+                !className.startsWith("org.bukkit.") &&
+                !value.getClass().isPrimitive() &&
+                !value.getClass().isEnum();
+    }
+
+    private boolean isCustomClass(Class<?> clazz) {
+        String className = clazz.getName();
+        return !className.startsWith("java.") &&
+                !className.startsWith("javax.") &&
+                !className.startsWith("org.bukkit.") &&
+                !clazz.isPrimitive() &&
+                !clazz.isEnum();
+    }
+
     private String insertComments(String yamlString) {
+        // First fix empty lists format
+        yamlString = fixEmptyListsFormat(yamlString);
+
         Map<String, String[]> comments = new LinkedHashMap<>();
         for (Field field : this.getClass().getDeclaredFields()) {
             if (field.isAnnotationPresent(Comment.class)) {
@@ -127,8 +569,12 @@ public class GetConfig {
             }
         }
 
+        if (comments.isEmpty()) return yamlString;
+
         StringBuilder sb = new StringBuilder();
-        for (String line : yamlString.split("\n")) {
+        String[] lines = yamlString.split("\n");
+
+        for (String line : lines) {
             for (Map.Entry<String, String[]> entry : comments.entrySet()) {
                 if (line.startsWith(entry.getKey() + ":")) {
                     for (String commentLine : entry.getValue()) {
@@ -139,94 +585,74 @@ public class GetConfig {
             }
             sb.append(line).append("\n");
         }
+
         return sb.toString();
     }
 
-    /**
-     * Loads the configuration from the specified file, URL, or in-memory content.
-     *
-     * @throws RuntimeException if there's an error loading the configuration or if no source is set.
-     */
-    /**
-     * Loads the configuration from the specified file, URL, or in-memory content.
-     *
-     * @throws RuntimeException if there's an error loading the configuration or if no source is set.
-     */
-    public void load() {
-        if (isLoading) {
-            logger.warn("Recursive load() call detected, skipping");
-            return;
-        }
+    private String fixEmptyListsFormat(String yamlString) {
+        // empty arrays that span multiple lines
+        yamlString = yamlString.replaceAll(":\\s*\\[\\s*\\n\\s*\\]", ": []");
 
-        boolean wasEmpty = false;
+        // pattern: "key: [\n    ]" -> "key: []"
+        yamlString = yamlString.replaceAll(":\\s*\\[\\s*\\n\\s*\\]", ": []");
 
-        try {
-            isLoading = true;
-            if (file != null) {
-                wasEmpty = !file.exists() || Files.size(file.toPath()) == 0;
-                loadFromFile();
-            } else if (url != null) {
-                wasEmpty = loadFromUrl(); // Zwraca true jeśli było puste
-            } else if (content != null) {
-                mapper.readerForUpdating(this).readValue(content);
+        // pattern where there's whitespace between brackets
+        yamlString = yamlString.replaceAll(":\\s*\\[\\s+\\]", ": []");
+
+        // any [ followed by whitespace and newlines ending with ]
+        yamlString = yamlString.replaceAll("(?m)^(\\s*\\w+):\\s*\\[\\s*\\n\\s*\\]", "$1: []");
+
+        String[] lines = yamlString.split("\n");
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            if (line.matches(".*:\\s*\\[\\s*$")) {
+                // Look ahead for closing bracket
+                int j = i + 1;
+                boolean foundClosing = false;
+                while (j < lines.length && lines[j].matches("\\s*")) {
+                    j++;
+                }
+                if (j < lines.length && lines[j].matches("\\s*\\]\\s*")) {
+                    result.append(line.replaceAll(":\\s*\\[\\s*$", ": []")).append("\n");
+                    i = j;
+                    foundClosing = true;
+                }
+                if (!foundClosing) {
+                    result.append(line).append("\n");
+                }
             } else {
-                throw new IllegalStateException("Neither file, URL, nor content is set");
+                result.append(line).append("\n");
             }
-        } catch (IOException e) {
-            logger.error("Failed to load configuration", e);
-            throw new RuntimeException("Failed to load configuration", e);
-        } finally {
-            isLoading = false;
         }
 
-        // Automatycznie zapisz domyślne wartości jeśli konfiguracja była pusta
-        if (wasEmpty) {
-            logger.info("Configuration was empty, saving default values to: {}", url != null ? url : file);
-            save();
-        }
+        return result.toString();
     }
 
-    /**
-     * Loads the configuration from the specified URL.
-     *
-     * @return true if the content was empty, false otherwise
-     * @throws IOException if there's an error reading from the URL.
-     */
-    private boolean loadFromUrl() throws IOException {
+    private boolean shouldSkipField(Field field) {
+        return field.isSynthetic() ||
+                java.lang.reflect.Modifier.isStatic(field.getModifiers()) ||
+                java.lang.reflect.Modifier.isTransient(field.getModifiers()) ||
+                field.isAnnotationPresent(YamlIgnore.class) ||
+                field.getName().equals("yaml") ||
+                field.getName().equals("file") ||
+                field.getName().equals("url") ||
+                field.getName().equals("content") ||
+                field.getName().equals("isLoading") ||
+                field.getName().equals("isSaving");
+    }
+
+    private String loadFromUrl() throws IOException {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
 
         try (InputStream is = connection.getInputStream()) {
-            byte[] content = is.readAllBytes();
-            if (content.length == 0) {
-                logger.info("URL returned empty content: {}", url);
-                return true; // Oznacza, że treść była pusta
-            }
-            mapper.readerForUpdating(this).readValue(content);
-            logger.info("Successfully loaded configuration from URL: {}", url);
-            return false; // Treść nie była pusta
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 
-
-    /**
-     * Loads the configuration from the specified file.
-     *
-     * @throws IOException if there's an error reading from the file.
-     */
-    private void loadFromFile() throws IOException {
-        if (!file.exists() || Files.size(file.toPath()) == 0) {
-            return;
-        }
-        mapper.readerForUpdating(this).readValue(file);
-    }
-
-    /**
-     * Saves the configuration to the specified URL.
-     *
-     * @param content The configuration content to save.
-     * @throws IOException if there's an error writing to the URL.
-     */
     private void saveToUrl(String content) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
@@ -243,29 +669,4 @@ public class GetConfig {
         }
     }
 
-    /**
-     * Converts the current configuration to a YAML string.
-     *
-     * @return A YAML string representation of the configuration.
-     * @throws IOException if there's an error during serialization.
-     */
-    @JsonIgnore
-    public String toYaml() throws IOException {
-        return mapper.writeValueAsString(this);
-    }
-
-    /**
-     * Gets the ObjectMapper used by this configuration.
-     *
-     * @return The ObjectMapper instance.
-     */
-    @JsonIgnore
-    public ObjectMapper getMapper() {
-        return this.mapper;
-    }
-
-    @JsonIgnore
-    public File getFile() {
-        return file;
-    }
 }

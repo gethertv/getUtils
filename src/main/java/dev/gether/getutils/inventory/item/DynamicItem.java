@@ -1,6 +1,5 @@
 package dev.gether.getutils.inventory.item;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import dev.gether.getutils.models.Item;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -52,7 +51,6 @@ public class DynamicItem {
         placeholders.remove(key);
     }
 
-    @JsonIgnore
     public ItemStack getProcessedItem() {
         if (disposed || item == null) return null;
 
@@ -84,7 +82,6 @@ public class DynamicItem {
         }
     }
 
-    @JsonIgnore
     private String replacePlaceholders(String text) {
         if (disposed || text == null || placeholders == null || placeholders.isEmpty()) {
             return text;

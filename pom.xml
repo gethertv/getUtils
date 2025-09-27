@@ -6,7 +6,7 @@
 
     <groupId>io.github.gethertv</groupId>
     <artifactId>getutils</artifactId>
-    <version>1.5</version>
+    <version>1.5-lite</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -94,23 +94,6 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
-                        <configuration>
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.fasterxml.jackson</pattern>
-                                    <shadedPattern>dev.gether.shaded.jackson</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludeDefaults>false</excludeDefaults>
-                                    <includes>
-                                        <include>com/fasterxml/jackson/**</include>
-                                    </includes>
-                                </filter>
-                            </filters>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -177,31 +160,20 @@
     </repositories>
 
     <dependencies>
-        <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
-            <version>2.2</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.dataformat</groupId>
-            <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>${jackson.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
-            <scope>compile</scope>
-        </dependency>
-
 <!--        <dependency>-->
 <!--            <groupId>org.spigotmc</groupId>-->
 <!--            <artifactId>spigot-api</artifactId>-->
 <!--            <version>1.21.1-R0.1-SNAPSHOT</version>-->
 <!--            <scope>provided</scope>-->
 <!--        </dependency>-->
+
+
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>2.5</version>
+            <scope>compile</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.spigotmc</groupId>
