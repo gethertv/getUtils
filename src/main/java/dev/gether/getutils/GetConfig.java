@@ -2,6 +2,7 @@ package dev.gether.getutils;
 
 import dev.gether.getutils.annotation.Comment;
 import dev.gether.getutils.annotation.YamlIgnore;
+import dev.gether.getutils.utils.MessageUtil;
 import lombok.Getter;
 import org.bukkit.Location;
 import org.bukkit.Sound;
@@ -398,9 +399,9 @@ public class GetConfig {
             }
             return list;
         } else if (value instanceof Map) {
-            Map<String, Object> map = new LinkedHashMap<>();
+            Map<Object, Object> map = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
-                String key = entry.getKey().toString();
+                Object key = entry.getKey();
                 map.put(key, serializeValue(entry.getValue()));
             }
             return map;
@@ -437,7 +438,7 @@ public class GetConfig {
             }
             return array;
         }
-
+        // Bukkit types
         else if (targetType == Location.class && value instanceof Map) {
             return Location.deserialize((Map<String, Object>) value);
         } else if (targetType == ItemStack.class && value instanceof Map) {
@@ -452,7 +453,9 @@ public class GetConfig {
             return Sound.valueOf((String) value);
         } else if (targetType.isEnum() && value instanceof String) {
             return Enum.valueOf((Class<Enum>) targetType, (String) value);
-        } else if (value instanceof List) {
+        }
+        // Collections (List, Set)
+        else if (value instanceof List) {
             List<?> sourceList = (List<?>) value;
 
             if (Set.class.isAssignableFrom(targetType)) {
@@ -502,7 +505,37 @@ public class GetConfig {
             } else if (Collection.class.isAssignableFrom(targetType)) {
                 return new ArrayList<>(sourceList);
             }
-        } else if (value instanceof Map && isCustomClass(targetType)) {
+        }
+        // Maps - PRZENIESIONE TUTAJ, NA ODPOWIEDNI POZIOM
+        else if (value instanceof Map && Map.class.isAssignableFrom(targetType)) {
+            Map<Object, Object> sourceMap = (Map<Object, Object>) value;
+            Map<Object, Object> resultMap = new LinkedHashMap<>();
+
+            Class<?> keyType = Object.class;
+            Class<?> valueType = Object.class;
+
+            if (genericType instanceof ParameterizedType) {
+                ParameterizedType paramType = (ParameterizedType) genericType;
+                Type[] typeArgs = paramType.getActualTypeArguments();
+                MessageUtil.broadcast("DEBUG: Found " + typeArgs.length + " type args");
+                if (typeArgs.length >= 2) {
+                    MessageUtil.broadcast("DEBUG: keyType: " + typeArgs[0]);
+                    MessageUtil.broadcast("DEBUG: valueType: " + typeArgs[1]);
+                    if (typeArgs[0] instanceof Class) keyType = (Class<?>) typeArgs[0];
+                    if (typeArgs[1] instanceof Class) valueType = (Class<?>) typeArgs[1];
+                }
+            }
+
+            for (Map.Entry<?, ?> entry : sourceMap.entrySet()) {
+                Object deserializedKey = deserializeValue(entry.getKey(), keyType, null);
+                Object deserializedValue = deserializeValue(entry.getValue(), valueType, null);
+                resultMap.put(deserializedKey, deserializedValue);
+            }
+
+            return resultMap;
+        }
+        // Custom objects
+        else if (value instanceof Map && isCustomClass(targetType)) {
             Object instance = targetType.getDeclaredConstructor().newInstance();
             mapToObject((Map<String, Object>) value, instance);
             return instance;
@@ -532,6 +565,7 @@ public class GetConfig {
         double amount = ((Number) data.get("amount")).doubleValue();
         String operationStr = (String) data.get("operation");
         String slotStr = (String) data.get("slot");
+
 
         AttributeModifier.Operation operation = AttributeModifier.Operation.valueOf(operationStr);
         org.bukkit.inventory.EquipmentSlot slot = org.bukkit.inventory.EquipmentSlot.valueOf(slotStr.toUpperCase());
