@@ -2,9 +2,11 @@ package dev.gether.getutils;
 
 import dev.gether.getutils.annotation.Comment;
 import dev.gether.getutils.annotation.YamlIgnore;
+import dev.gether.getutils.utils.ConsoleColor;
 import dev.gether.getutils.utils.MessageUtil;
 import lombok.Getter;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
@@ -52,9 +54,8 @@ public class GetConfig {
         dumperOptions.setPrettyFlow(true);
         dumperOptions.setIndent(2);
 
-        // Force empty collections to use block style
         dumperOptions.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
-        dumperOptions.setWidth(Integer.MAX_VALUE); // Don't wrap lines
+        dumperOptions.setWidth(Integer.MAX_VALUE);
 
         LoaderOptions loaderOptions = new LoaderOptions();
 
@@ -75,6 +76,7 @@ public class GetConfig {
             this.multiRepresenters.put(AttributeModifier.class, new RepresentAttributeModifier());
             this.multiRepresenters.put(Enchantment.class, new RepresentEnchantment());
             this.multiRepresenters.put(Sound.class, new RepresentSound());
+            this.multiRepresenters.put(UUID.class, new RepresentUUID());
 
             this.multiRepresenters.put(int[].class, new RepresentIntArray());
             this.multiRepresenters.put(long[].class, new RepresentLongArray());
@@ -82,10 +84,37 @@ public class GetConfig {
             this.multiRepresenters.put(String[].class, new RepresentStringArray());
             this.multiRepresenters.put(Object[].class, new RepresentObjectArray());
 
+            this.multiRepresenters.put(Enum.class, new RepresentEnum());
             this.multiRepresenters.put(List.class, new RepresentList());
             this.multiRepresenters.put(Set.class, new RepresentSet());
 
             this.multiRepresenters.put(Object.class, new RepresentCustomObject());
+        }
+
+        @Override
+        protected Node representMapping(Tag tag, Map<?, ?> mapping, DumperOptions.FlowStyle flowStyle) {
+            Map<Object, Object> filteredMap = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : mapping.entrySet()) {
+                Object key = entry.getKey();
+                Object value = entry.getValue();
+
+                if (key != null && value != null) {
+                    filteredMap.put(key, value);
+                }
+            }
+
+            List<org.yaml.snakeyaml.nodes.NodeTuple> nodeTuples = new ArrayList<>();
+
+            for (Map.Entry<?, ?> entry : filteredMap.entrySet()) {
+                Node keyNode = representData(entry.getKey());
+                Node valueNode = representData(entry.getValue());
+
+                if (keyNode != null && valueNode != null) {
+                    nodeTuples.add(new org.yaml.snakeyaml.nodes.NodeTuple(keyNode, valueNode));
+                }
+            }
+
+            return new org.yaml.snakeyaml.nodes.MappingNode(tag, nodeTuples, flowStyle);
         }
 
         private class RepresentIntArray implements Represent {
@@ -111,6 +140,12 @@ public class GetConfig {
                     list.add(value);
                 }
                 return representSequence(Tag.SEQ, list, list.isEmpty() ? DumperOptions.FlowStyle.FLOW : DumperOptions.FlowStyle.BLOCK);
+            }
+        }
+
+        private class RepresentUUID implements Represent {
+            public Node representData(Object data) {
+                return representScalar(Tag.STR, ((UUID) data).toString());
             }
         }
 
@@ -144,11 +179,19 @@ public class GetConfig {
         private class RepresentList implements Represent {
             public Node representData(Object data) {
                 List<?> list = (List<?>) data;
-                if (list.isEmpty()) {
-                    return representSequence(getTag(data.getClass(), Tag.SEQ), list, DumperOptions.FlowStyle.FLOW);
-                } else {
-                    return representSequence(getTag(data.getClass(), Tag.SEQ), list, DumperOptions.FlowStyle.BLOCK);
+
+                List<Object> filteredList = new ArrayList<>();
+                for (Object item : list) {
+                    if (item != null) {
+                        filteredList.add(item);
+                    }
                 }
+
+                return representSequence(
+                        getTag(data.getClass(), Tag.SEQ),
+                        filteredList,
+                        filteredList.isEmpty() ? DumperOptions.FlowStyle.FLOW : DumperOptions.FlowStyle.BLOCK
+                );
             }
         }
 
@@ -172,7 +215,34 @@ public class GetConfig {
 
         private class RepresentItemStack implements Represent {
             public Node representData(Object data) {
-                return represent(((ItemStack) data).serialize());
+                if (data == null) {
+                    return representScalar(Tag.NULL, "null");
+                }
+
+                ItemStack itemStack = (ItemStack) data;
+                try {
+                    org.bukkit.configuration.file.YamlConfiguration craftConfig = new org.bukkit.configuration.file.YamlConfiguration();
+                    craftConfig.set("_", itemStack);
+                    String yamlString = craftConfig.saveToString();
+
+                    Yaml snakeYaml = new Yaml();
+                    Map<String, Object> root = snakeYaml.load(yamlString);
+                    Map<String, Object> itemMap = (Map<String, Object>) root.get("_");
+
+                    if (itemMap != null) {
+                        itemMap.remove("==");
+
+                        Map<Object, Object> cleaned = deepCleanMap((Map<Object, Object>) (Object) itemMap);
+
+                        return represent(cleaned);
+                    }
+                } catch (Exception e) {
+                    logger.warning("Failed to represent ItemStack with YamlConfiguration: " + e.getMessage());
+                    e.printStackTrace();
+                }
+
+                // Fallback
+                return representScalar(Tag.NULL, "null");
             }
         }
 
@@ -191,6 +261,12 @@ public class GetConfig {
         private class RepresentEnchantment implements Represent {
             public Node representData(Object data) {
                 return representScalar(Tag.STR, ((Enchantment) data).getKey().getKey());
+            }
+        }
+
+        private class RepresentEnum implements Represent {
+            public Node representData(Object data) {
+                return representScalar(Tag.STR, ((Enum<?>) data).name());
             }
         }
 
@@ -220,6 +296,50 @@ public class GetConfig {
             super(loaderOptions);
         }
     }
+
+    @SuppressWarnings("unchecked")
+    private Map<Object, Object> deepCleanMap(Map<Object, Object> map) {
+        Map<Object, Object> cleaned = new LinkedHashMap<>();
+
+        for (Map.Entry<Object, Object> entry : map.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+
+            Object value = entry.getValue();
+
+            if (value instanceof Map) {
+                Map<Object, Object> cleanedNested = deepCleanMap((Map<Object, Object>) value);
+                if (!cleanedNested.isEmpty()) {
+                    cleaned.put(entry.getKey(), cleanedNested);
+                }
+            }
+            else if (value instanceof List) {
+                List<Object> cleanedList = new ArrayList<>();
+                for (Object item : (List<?>) value) {
+                    if (item != null) {
+                        if (item instanceof Map) {
+                            Map<Object, Object> cleanedItem = deepCleanMap((Map<Object, Object>) item);
+                            if (!cleanedItem.isEmpty()) {
+                                cleanedList.add(cleanedItem);
+                            }
+                        } else {
+                            cleanedList.add(item);
+                        }
+                    }
+                }
+                if (!cleanedList.isEmpty()) {
+                    cleaned.put(entry.getKey(), cleanedList);
+                }
+            }
+            else {
+                cleaned.put(entry.getKey(), value);
+            }
+        }
+
+        return cleaned;
+    }
+
 
     public void setFile(File file) {
         this.file = file;
@@ -318,7 +438,13 @@ public class GetConfig {
             Object value = field.get(obj);
 
             if (value != null) {
-                result.put(field.getName(), serializeValue(value));
+                Object serialized = serializeValue(value);
+                if (serialized != null) {
+                    if (serialized instanceof Map && ((Map<?, ?>) serialized).isEmpty()) {
+                        continue;
+                    }
+                    result.put(field.getName(), serialized);
+                }
             }
         }
 
@@ -378,10 +504,27 @@ public class GetConfig {
         }
 
         // Bukkit types
+        else if (value instanceof UUID) {
+            return value.toString();
+        }
         else if (value instanceof Location) {
             return ((Location) value).serialize();
         } else if (value instanceof ItemStack) {
-            return ((ItemStack) value).serialize();
+            ItemStack itemStack = (ItemStack) value;
+
+            org.bukkit.configuration.file.YamlConfiguration craftConfig = new org.bukkit.configuration.file.YamlConfiguration();
+            craftConfig.set("_", itemStack);
+            String yamlString = craftConfig.saveToString();
+
+            Yaml snakeYaml = new Yaml();
+            Map<String, Object> root = snakeYaml.load(yamlString);
+            Map<String, Object> itemMap = (Map<String, Object>) root.get("_");
+
+            if (itemMap != null) {
+                itemMap.remove("==");
+                return itemMap;
+            }
+            return null;
         } else if (value instanceof PotionEffect) {
             return ((PotionEffect) value).serialize();
         } else if (value instanceof AttributeModifier) {
@@ -395,17 +538,30 @@ public class GetConfig {
         } else if (value instanceof Collection) {
             List<Object> list = new ArrayList<>();
             for (Object item : (Collection<?>) value) {
-                list.add(serializeValue(item));
+                if (item instanceof String) {
+                    list.add(((String) item).trim());
+                } else {
+                    list.add(serializeValue(item));
+                }
             }
             return list;
         } else if (value instanceof Map) {
             Map<Object, Object> map = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                 Object key = entry.getKey();
-                map.put(key, serializeValue(entry.getValue()));
+                Object val = entry.getValue();
+
+                if (key == null || val == null) {
+                    continue;
+                }
+
+                if (key instanceof Enum) {
+                    key = ((Enum<?>) key).name();
+                }
+                map.put(key, serializeValue(val));
             }
             return map;
-        } else if (isCustomObject(value)) {
+        }  else if (isCustomObject(value)) {
             return objectToMap(value);
         }
 
@@ -416,7 +572,6 @@ public class GetConfig {
     private Object deserializeValue(Object value, Class<?> targetType, Type genericType) throws Exception {
         if (value == null) return null;
 
-        // Array types - convert lists back to arrays
         if (targetType == int[].class && value instanceof List) {
             List<Number> list = (List<Number>) value;
             return list.stream().mapToInt(Number::intValue).toArray();
@@ -438,11 +593,27 @@ public class GetConfig {
             }
             return array;
         }
-        // Bukkit types
+
+        else if (targetType == UUID.class && value instanceof String) {
+            return UUID.fromString((String) value);
+        }
         else if (targetType == Location.class && value instanceof Map) {
             return Location.deserialize((Map<String, Object>) value);
         } else if (targetType == ItemStack.class && value instanceof Map) {
-            return ItemStack.deserialize((Map<String, Object>) value);
+            Map<String, Object> itemMap = new LinkedHashMap<>();
+            itemMap.put("==", "org.bukkit.inventory.ItemStack");
+            itemMap.putAll((Map<String, Object>) value);
+
+            org.bukkit.configuration.file.YamlConfiguration craftConfig = new org.bukkit.configuration.file.YamlConfiguration();
+            craftConfig.set("_", itemMap);
+
+            try {
+                craftConfig.loadFromString(craftConfig.saveToString());
+                return craftConfig.getItemStack("_");
+            } catch (Exception e) {
+                logger.warning("Failed to deserialize ItemStack, falling back to default: " + e.getMessage());
+                return ItemStack.deserialize((Map<String, Object>) value);
+            }
         } else if (targetType == PotionEffect.class && value instanceof Map) {
             return new PotionEffect((Map<String, Object>) value);
         } else if (targetType == AttributeModifier.class && value instanceof Map) {
@@ -454,7 +625,6 @@ public class GetConfig {
         } else if (targetType.isEnum() && value instanceof String) {
             return Enum.valueOf((Class<Enum>) targetType, (String) value);
         }
-        // Collections (List, Set)
         else if (value instanceof List) {
             List<?> sourceList = (List<?>) value;
 
@@ -506,7 +676,6 @@ public class GetConfig {
                 return new ArrayList<>(sourceList);
             }
         }
-        // Maps - PRZENIESIONE TUTAJ, NA ODPOWIEDNI POZIOM
         else if (value instanceof Map && Map.class.isAssignableFrom(targetType)) {
             Map<Object, Object> sourceMap = (Map<Object, Object>) value;
             Map<Object, Object> resultMap = new LinkedHashMap<>();
@@ -517,10 +686,7 @@ public class GetConfig {
             if (genericType instanceof ParameterizedType) {
                 ParameterizedType paramType = (ParameterizedType) genericType;
                 Type[] typeArgs = paramType.getActualTypeArguments();
-                MessageUtil.broadcast("DEBUG: Found " + typeArgs.length + " type args");
                 if (typeArgs.length >= 2) {
-                    MessageUtil.broadcast("DEBUG: keyType: " + typeArgs[0]);
-                    MessageUtil.broadcast("DEBUG: valueType: " + typeArgs[1]);
                     if (typeArgs[0] instanceof Class) keyType = (Class<?>) typeArgs[0];
                     if (typeArgs[1] instanceof Class) valueType = (Class<?>) typeArgs[1];
                 }
@@ -546,6 +712,10 @@ public class GetConfig {
             return value.toString();
         } else if (targetType == Integer.class || targetType == int.class) {
             return value instanceof Number ? ((Number) value).intValue() : Integer.parseInt(value.toString());
+        } else if (targetType == Long.class || targetType == long.class) {
+            return value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString());
+        } else if (targetType == Float.class || targetType == float.class) {
+            return value instanceof Number ? ((Number) value).floatValue() : Float.parseFloat(value.toString());
         } else if (targetType == Double.class || targetType == double.class) {
             return value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString());
         } else if (targetType == Boolean.class || targetType == boolean.class) {
@@ -592,7 +762,6 @@ public class GetConfig {
     }
 
     private String insertComments(String yamlString) {
-        // First fix empty lists format
         yamlString = fixEmptyListsFormat(yamlString);
 
         Map<String, String[]> comments = new LinkedHashMap<>();

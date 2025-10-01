@@ -120,7 +120,7 @@ public abstract class AbstractInventoryHolder<T extends JavaPlugin> implements I
     public void handleClick(InventoryClickEvent event) {
         if (closed) return;
 
-        int slot = event.getSlot();
+        int slot = event.getRawSlot();
         Consumer<InventoryClickEvent> action = slotActions.get(slot);
         if (action != null) {
             try {
